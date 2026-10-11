@@ -16,6 +16,7 @@ import { copyTextToClipboard } from "@/lib/utils";
 import { summarizeClasses } from "../_lib/classify";
 import {
   SEVERITY_BANDS,
+  SEVERITY_LEGEND,
   countBySeverity,
   formatFinding,
   formatFindings,
@@ -32,6 +33,7 @@ import type {
   RateLimitState,
   Resolution,
   Severity,
+  ToolMetrics,
   UnifiedDiff,
 } from "../_lib/types";
 
@@ -192,6 +194,8 @@ export function DiagnosticPane() {
               <Metric label="lines" value={metrics.lineCount} />
             </dl>
 
+            <UsesCapNotice metrics={metrics} />
+
             <div className="flex-1 overflow-y-auto">
               <FindingsReport findings={findings} source={source} />
               <GrantTableView grants={permissions} />
@@ -275,6 +279,41 @@ function RateLimitBanner({ budget }: { budget: RateLimitState }) {
   );
 }
 
+/**
+ * The amber "we stopped scanning, and here is how much we did not scan" strip
+ * (ARCH §8). A workflow with more than `MAX_USES_SCAN` structural `uses:`
+ * nodes is analysed up to the cap and the remainder is REPORTED — never
+ * silently dropped, and never quietly counted as analysed.
+ */
+function UsesCapNotice({ metrics }: { metrics: ToolMetrics }) {
+  if (!metrics.usesCapHit) return null;
+  const unscanned = Math.max(0, metrics.usesSeen - metrics.usesScanned);
+
+  return (
+    <section
+      role="status"
+      aria-label="Uses scan cap"
+      data-testid="uses-cap-notice"
+      data-seen={metrics.usesSeen}
+      data-scanned={metrics.usesScanned}
+      className="border-b border-surface-border bg-brand-amber/10 px-4 py-2.5"
+    >
+      <p className="flex flex-wrap items-baseline gap-x-2 text-xs leading-relaxed text-brand-amber">
+        <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <strong className="font-medium">Scan capped</strong>
+        <span className="font-mono text-[10px] tabular-nums">
+          {metrics.usesScanned} of {metrics.usesSeen} analysed
+        </span>
+      </p>
+      <p className="pt-1 text-xs leading-relaxed text-zinc-300">
+        <code className="font-mono">uses:</code> scan capped at 2,000 nodes —
+        the remaining {unscanned} were not analyzed. Everything below describes
+        the first {metrics.usesScanned} nodes only.
+      </p>
+    </section>
+  );
+}
+
 /** `3m 12s` from an absolute reset, counted against `nowMs`. */
 function countdown(resetAt: number, nowMs: number): string {
   const seconds = Math.max(0, Math.round((resetAt - nowMs) / 1000));
@@ -348,6 +387,10 @@ function ResolutionReceipts({
                 ) : status === "rate-limited" ? (
                   <span className="inline-flex items-center gap-1 rounded border border-brand-amber/40 bg-brand-amber/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-brand-amber">
                     not resolved
+                  </span>
+                ) : status === "unsafe-ref" ? (
+                  <span className="inline-flex items-center gap-1 rounded border border-brand-rose/40 bg-brand-rose/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-brand-rose">
+                    refused
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 rounded border border-surface-border bg-surface-subtle px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-zinc-400">
@@ -563,6 +606,21 @@ function FindingsReport({ findings, source }: { findings: Finding[]; source: str
         </div>
       </div>
 
+      {/* The one-line severity legend: what each band means, in band order. */}
+      <p
+        data-testid="severity-legend"
+        className="px-4 pb-2 font-mono text-[10px] leading-relaxed text-zinc-500"
+      >
+        {SEVERITY_BANDS.map((band) => (
+          <span key={band.severity} className="pr-3">
+            <span className={SEVERITY_STYLE[band.severity].band}>
+              {SEVERITY_STYLE[band.severity].label}
+            </span>{" "}
+            {SEVERITY_LEGEND[band.severity].replace(/^[^—]+—\s*/, "")}
+          </span>
+        ))}
+      </p>
+
       {ordered.length === 0 ? (
         <p className="px-4 pb-3 text-xs leading-relaxed text-zinc-400">
           The four offline audits — permissions, template injection, dangerous
@@ -617,7 +675,8 @@ function FindingsReport({ findings, source }: { findings: Finding[]; source: str
                           onClick={() => handleCopyOne(finding)}
                           aria-label={`Copy finding ${finding.id}`}
                           data-testid="copy-finding"
-                          className="shrink-0 rounded border border-surface-border bg-surface-subtle px-1.5 py-0.5 font-mono text-[10px] text-zinc-400 transition-colors duration-150 ease-out-expo hover:border-surface-borderHover hover:bg-surface-elevated hover:text-zinc-100 active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-brand-lime/70 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+                          disabled={copiedId !== null}
+                          className="shrink-0 rounded border border-surface-border bg-surface-subtle px-1.5 py-0.5 font-mono text-[10px] text-zinc-400 transition-colors duration-150 ease-out-expo hover:border-surface-borderHover hover:bg-surface-elevated hover:text-zinc-100 active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-brand-lime/70 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-surface-border disabled:hover:bg-surface-subtle"
                         >
                           {copiedId === finding.id ? (
                             <Check className="h-3 w-3 text-brand-lime" aria-hidden="true" />

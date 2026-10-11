@@ -11,12 +11,26 @@
 app/tools/anchorflow/page.tsx          orchestration + layout only
   └── _hooks/useToolWorker.ts          worker lifecycle, debounce, watchdog, degrade
         ├── _workers/compute.worker.ts off-main-thread execution + artifact LRU
-        ├── _lib/compute.ts            pipeline orchestrator (Phase A + the Phase-B merge)
-        │     ├── _lib/analyze.ts      the placeholder measurement core (pure)
+        ├── _lib/compute.ts            pipeline orchestrator (runPhaseA + analyzeResolve)
+        │     ├── _lib/analyze.ts      PHASE A — the whole offline pipeline (pure)
+        │     ├── _lib/yamlParse.ts    source → WorkflowModel, parse errors as values
+        │     ├── _lib/classify.ts     the `uses:` classes (6 classes × 2 scopes)
+        │     ├── _lib/permissionAudit.ts + grantTable.ts
+        │     ├── _lib/injectionDetect.ts
+        │     ├── _lib/triggerAudit.ts
+        │     ├── _lib/rewrite.ts      offset-surgical rewrite (the crux)
+        │     ├── _lib/diff.ts         the red/green unified diff
+        │     ├── _lib/refResolver.ts  the opt-in, path-safe resolver (fetch seam)
+        │     ├── _lib/findings.ts     severity bands + the canonical sort
+        │     ├── _lib/textMetrics.ts  bytes/words/lines + the code-point-safe cap
+        │     ├── _lib/actionCatalog.ts / guide.ts / presets.ts
         │     ├── _lib/protocol.ts     the phase-rank stale guard (pure)
+        │     ├── _lib/authGate.ts / supabaseClient.ts
         │     └── _lib/constants.ts    every cap/budget/deadline (one grep site)
         └── _store/useToolStore.ts     zustand result/state sink
 ```
+
+  21 modules in total; `README.md` carries the per-module export table.
 
 - `_lib/` is **pure**: no React, no DOM, no IO, no `fetch` (enforced by
   `_lib/__tests__/purity.test.ts`; `authGate.ts` is the single documented
@@ -34,7 +48,7 @@ app/tools/anchorflow/page.tsx          orchestration + layout only
 WorkerInputPayload  { id, phase: "A" | "B", source, resolve, budget }
 WorkerOutputPayload { id, phase, ok, fatalError, uses, resolutions,
                       rewrittenYaml, diff, permissions, findings, metrics,
-                      rateLimit, echo }
+                      rateLimit }
 ```
 
 Both phases post the **full** envelope; a partial is a bug.
@@ -104,7 +118,7 @@ same names, `RESOLVE_CACHE_CAPACITY ↔ ARTIFACT_CACHE_CAPACITY`.
 |---|---|---|
 | `source` | **persisted** | the workflow text, seeded from `DEFAULT_WORKFLOW` |
 | `autoResolve` | **persisted** | opt-in; defaults `false` (zero egress on first paint) |
-| `report` (uses/resolutions/rewrittenYaml/diff/permissions/findings/echo) | transient | the settled output |
+| `report` (uses/resolutions/rewrittenYaml/diff/permissions/findings/ok/fatalError) | transient | the settled output |
 | `metrics` | transient | line/byte/char/word counts + timings + truncation flags |
 | `isProcessing`, `errorMessage`, `isWorkerAvailable` | transient | pipeline health |
 | `resolveStatus`, `rateLimit` | transient | Phase B status + budget |
@@ -133,8 +147,10 @@ takes each report field from the payload only when defined.
 4. Thread it through the worker envelope and `applyResult` with the
    field-merge guard intact.
 5. Render it with all five interaction states and a copy affordance.
-6. Extend `e2e/smoke.spec.ts` or `e2e/visual.spec.ts`.
-7. Run the five gates: typecheck → lint → test → build → e2e.
+6. Extend the e2e spec that owns it: `smoke.spec.ts` (surface journeys),
+   `pipeline.spec.ts` (worker / degraded / watchdog), `resolve.spec.ts`
+   (the resolver and its receipts), or `visual.spec.ts` (structure + privacy).
+7. Run the gates: typecheck → lint → test → coverage → build → bench → e2e.
 
 ## 7. Deployment
 
@@ -159,15 +175,32 @@ takes each report field from the payload only when defined.
 - **Unit (vitest, node):** every pure `_lib` module. Includes the caps grep
   suite, the `_lib` purity scan, the phase-rank protocol matrix, the Phase-B
   merge invariant, and the seeded-first-run guard.
-- **E2E (Playwright, real standalone artifact):** `smoke.spec.ts` for the
-  journeys (redirect, landmarks, seeded paint, the worker round-trip, ⌘K, ⌘⇧C,
-  theme flip, persistence shape, FAQ JSON-LD) and `visual.spec.ts` for the
-  structural + privacy guards (no overflow 390/1440, stacking, `main`
-  max-width contract, zero-egress request guard, zero uncaught errors).
-- **Measurement:** `BENCHMARKS.md` records the real median/p95 of the pure core
-  on the named machine; the default-path assertion is relative
-  (`5k-line < 0.5 × WORKER_DEADLINE_MS`, `1k-line < 0.25 ×`).
-- **Later (domain pass):** recorded VCR fixtures for the resolver chain
-  (200-lightweight / 200-annotated+deref / 404 / 403 / 429) replayed offline
-  through the required `fetchImpl`, and a live-oracle job cross-checking
-  `git ls-remote … "refs/tags/<ref>^{}"`.
+- **E2E (Playwright, real standalone artifact)** — four spec files:
+  - `smoke.spec.ts` — the surface journeys: redirect, landmarks, the seeded
+    paint, the classification, the byte-identity of the first-paint rewrite, the
+    empty diff, copy (⌘⇧C + per-pane + per-finding), the palette (including the
+    Resolve & pin entry in both its enabled and inert states), theme flip,
+    persistence shape, below-the-fold education, sign-in offer-never-lock, and
+    the findings journey (AC-6 · AC-7 · AC-8).
+  - `pipeline.spec.ts` — the compute contract: the worker happy path, the
+    degraded main-thread path returning the SAME report, and the catastrophic
+    watchdog journey (BAR §10 item 7).
+  - `resolve.spec.ts` — the invocation guard, every pinned SHA, the receipts,
+    the rate-limit and offline friendly copy, and the AC-12 URL-shape guard.
+  - `visual.spec.ts` — structure and privacy: no overflow at 390/1440, stacking,
+    the `main` max-width contract, the zero-egress request guard, zero uncaught
+    errors, and the (skipped) pixel baselines.
+- **Coverage:** `npm run test:coverage` gates the pure core (functions ≥ 90,
+  lines/statements ≥ 80, branches ≥ 70) and is wired into `.github/workflows/ci.yml`.
+- **Measurement:** `npm run bench` (`scripts/bench-phase-a.ts`) prints the real
+  median/p95/max of the pure core on the machine named in `BENCHMARKS.md`; the
+  default-path assertion is relative (`5k-line < 0.5 × WORKER_DEADLINE_MS`,
+  `1k-line < 0.25 ×`).
+- **Recorded VCR fixtures:** `_lib/__tests__/fixtures/*.json` replay the resolver
+  chain (200-lightweight, 200-annotated + deref, 404, 403, 429) offline through
+  the required `fetchImpl` seam.
+- **Live oracle (gated, not in the default gate):** `.github/workflows/oracle.yml`
+  runs `workflow_dispatch` + a weekly cron (`17 6 * * 0`) with `GH_LIVE=1`,
+  re-resolves the recorded set and cross-checks each SHA with
+  `git ls-remote … "refs/tags/<ref>^{}"`; a 403/429 or offline runner is
+  reported SKIP, never FAIL.

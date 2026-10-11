@@ -156,6 +156,18 @@
   box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.05);
 }
 
+/* Keycap tactility — the ONE documented shadow exception (docs/DESIGN.md §4).
+   A keycap is the element the visitor is invited to press, so it is raised:
+   a soft drop plus a light inset. The inset frays in dark, like glass-edge. */
+:root {
+  --shadow-raycast: 0 1px 2px rgb(var(--ink) / 0.08),
+    inset 0 1px 0 0 rgb(255 255 255 / 0.6);
+}
+.dark {
+  --shadow-raycast: 0 1px 2px rgb(0 0 0 / 0.5),
+    inset 0 1px 0 0 rgb(255 255 255 / 0.05);
+}
+
 /* The one authored motion: a single lime hairline sweeping across x once,
    400ms, out-expo — the "recomputed" cue on the pattern underline. Attach to
    a positioned, overflow-hidden element; the kill-switch below guards it. */

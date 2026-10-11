@@ -50,7 +50,7 @@ export function FaqSection() {
             key={faq.q}
             className="group rounded-xl border border-surface-border bg-surface-base transition-colors open:border-surface-borderHover [&_summary::-webkit-details-marker]:hidden"
           >
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl px-4 py-3.5 text-sm font-medium text-zinc-100 transition-colors hover:bg-surface-subtle/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime/40">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl px-4 py-3.5 text-sm font-medium text-zinc-100 transition-colors duration-150 ease-out-expo hover:bg-surface-subtle/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime/40 active:scale-[0.98] motion-reduce:transition-none">
               <span className="text-left">{faq.q}</span>
               <ChevronDown
                 className="h-4 w-4 shrink-0 text-zinc-400 transition-transform duration-200 group-open:rotate-180"

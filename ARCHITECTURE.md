@@ -39,13 +39,19 @@ the test seam. Enforced by a source-scan test (SPEC §9 AC-16).
 
 Matchlight token ladder is reused verbatim (canvas/ink/surface ladder, one
 `brand-lime` accent, semantic-only violet/amber/rose, inverted zinc neutral, the
-8-floor craft rules, five interaction states, `scan-sweep`). Anchorflow maps the
-semantic colors to its meaning:
+craft-floor rules, five interaction states). Anchorflow maps the semantic colors
+to its own meaning, as the shipped `_components/DiagnosticPane.tsx` renders them:
 - **lime** = pinned / match / primary / the privacy promise.
-- **violet** = capture/secondary (e.g. the grant table's secondary scope).
-- **amber** = warn/degraded/truncation/rate-limit banner.
-- **rose** = error finding / copy-failure toast.
-Contract identical to `regex-craft/docs/DESIGN.md`; dual-theme AAA in both themes.
+- **violet** = **pending resolution** (a ref the resolver has not dispatched yet)
+  and **minor** severity in the findings bands.
+- **amber** = warn / degraded / truncation / the `uses:` scan cap / the rate-limit
+  banner.
+- **rose** = error finding / copy-failure toast / a ref refused by the path-safety
+  gate.
+Ink-on-canvas is measured `>10:1` in both themes and the secondary/muted zinc
+steps clear `4.5:1` on the surfaces they render on — computed from the shipped
+`app/globals.css` values by `app/tools/anchorflow/__tests__/contrast.test.ts`.
+Full surface semantics: `docs/DESIGN.md`.
 
 ---
 
@@ -58,27 +64,37 @@ protocol).
 
 ```
 app/tools/anchorflow/
-  _lib/
+  _lib/                                   21 modules — pure, no React / DOM / IO / fetch
     types.ts            zero-import types + worker protocol
-    constants.ts        EVERY cap/budget/deadline constant (single grep site, ARCH §7.2)
-    yamlParse.ts        source -> WorkflowModel (structure + offsets)  [pure]
-    classify.ts         UsesRaw -> ClassifiedUses (6 classes x 2 scopes)  [pure]
-    pinningAudit.ts     ClassifiedUses -> Finding[] (unpinned-uses/moving-ref)  [pure]
-    permissionAudit.ts  WorkflowModel -> Finding[] (+ grantTable)      [pure]
-    injectionDetect.ts  WorkflowModel -> InjectionSink[] (-> findings) [pure]
-    dangerTriggers.ts   WorkflowModel -> Finding[] (triggers+persist)   [pure]
-    refResolver.ts      ClassifiedUses -> Resolution[] (async)        [pure, fetch seam]
-    yamlRewrite.ts      source + Resolution[] -> pinned string        [pure, offset edits]
-    diff.ts             before/after -> UnifiedDiff (LCS line diff)    [pure]
-    presets.ts          DEFAULT_WORKFLOW + guide/faq content           [pure]
-    compute.ts          pipeline orchestrator (analyzeLocal + resolve) [pure, shared]
-    supabaseClient.ts   env-gated singleton promise (BAR §11)          [no IO]
-    authGate.ts         shouldPromptSignIn policy                      [pure]
+    constants.ts        EVERY cap/budget/deadline constant (single grep site, ARCH §7.1)
+    textMetrics.ts      bytes/words/lines, the code-point-safe truncation, the dispatch cap
+    yamlParse.ts        source -> WorkflowModel (structure + offsets), parse errors as values
+    classify.ts         UsesRaw -> ClassifiedUses (6 classes x 2 scopes)
+    permissionAudit.ts  WorkflowModel -> Finding[] (over-broad grants, token coupling)
+    grantTable.ts       WorkflowModel -> GrantTable (effective scope per job, UNSET aware)
+    injectionDetect.ts  WorkflowModel -> InjectionSink[] (-> template-injection findings)
+    triggerAudit.ts     dangerousTriggerAudit + persistCredentialsAudit
+    actionCatalog.ts    per-action / per-job guidance knowledge (guide, scopes, untrusted refs)
+    findings.ts         severity bands + legend, canonical sort, formatters
+    analyze.ts          PHASE A: the whole offline pipeline (parse -> ... -> diff -> metrics)
+    compute.ts          runPhaseA + analyzeResolve (Phase B) + resolutionFindings (shared)
+    refResolver.ts      ClassifiedUses -> Resolution[] (async, path-safe, fetch seam)
+    rewrite.ts          source + resolutions -> pinned string, offset-surgical edits
+    diff.ts             before/after -> UnifiedDiff (LCS line diff)
+    presets.ts          DEFAULT_WORKFLOW + TRUST_PILLS (single source for both)
+    guide.ts            GUIDE_TABS (KnowledgeHub content, one array)
+    authGate.ts         shouldPromptSignIn policy
+    protocol.ts         monotonic id + phase rank guard (isStaleDispatch / acceptDispatch)
+    supabaseClient.ts   env-gated lazy OAuth client (no IO without keys)
     __tests__/*.test.ts
   _workers/compute.worker.ts
   _hooks/useToolWorker.ts
   _store/useToolStore.ts
 ```
+
+The 21 modules are exactly what `ls app/tools/anchorflow/_lib/*.ts` prints;
+`README.md` carries the per-module export table, and this section pins the
+boundaries and the signatures the rest of the doc refers to.
 
 ### 3.1 `types.ts` (zero runtime imports)
 
@@ -87,7 +103,11 @@ app/tools/anchorflow/
 export type UsesClass = "sha40" | "sha256" | "remoteRef" | "local" | "docker" | "invalid";
 export type UsesScope = "step" | "job";          // job = jobs.<id>.uses (reusable workflow call)
 export type ResolveStatus =
-  | "not-requested" | "resolved" | "unknown-ref" | "rate-limited" | "network-error";
+  | "not-requested" | "resolved" | "unknown-ref" | "rate-limited"
+  | "network-error"
+  /** Refused BEFORE any request: the owner/repo/ref failed the path-safety
+   *  check. A value, never a silent fetch and never a silent drop. */
+  | "unsafe-ref";
 
 export interface UsesRaw {
   id: string; jobId: string; scope: UsesScope;
@@ -141,10 +161,25 @@ export interface Resolution {
   resolvedSha: string | null;
   status: ResolveStatus;
   receipt: ResolveReceipt | null;
+  endpointsUsed?: string[];          // every API path ISSUED, in call order (AC-12)
+  commitSha?: string | null;         // the final commit sha
+  tagObjectSha?: string | null;      // the annotated tag's own object sha
+  dereferencedFrom?: string | null;  // same sha, spelled the receipt's way
+  refKind?: "tag" | "branch" | null;
+  httpStatus?: number | null;        // deciding status; null when cache-served
+}
+
+export interface ToolMetrics {
+  lineCount: number; byteCount: number;        // byteCount = the ORIGINAL size
+  usesCount: number; resolvedCount: number;
+  parseTimeMs: number; resolveTimeMs: number;
+  truncated: boolean;
+  usesSeen: number; usesScanned: number; usesCapHit: boolean;   // the scan cap
+  characterCount: number; wordCount: number;
 }
 
 // ── Findings — ONE canonical array (injection sinks are template-injection findings) ──
-export type Severity = "error" | "warn" | "info";
+export type Severity = "error" | "warn" | "minor" | "info";   // four bands
 export type FindingCategory =
   | "unpinned-uses" | "template-injection" | "excessive-permissions"
   | "dangerous-trigger" | "persist-credentials" | "moving-ref" | "resolution";
@@ -178,7 +213,10 @@ export interface UnifiedDiff { changed: number; lines: UnifiedDiffLine[]; }
 export interface ToolMetrics {
   lineCount: number; byteCount: number; usesCount: number;
   resolvedCount: number; parseTimeMs: number; resolveTimeMs: number;
-  truncated: boolean; usesScanned: number; usesCapHit: boolean;
+  truncated: boolean;
+  // The scan cap, reported so the UI can say how much it did NOT read.
+  usesSeen: number; usesScanned: number; usesCapHit: boolean;
+  characterCount: number; wordCount: number;
 }
 export interface RateLimitState { limit: number; remaining: number; resetAt: number; }
 
@@ -207,7 +245,24 @@ export interface WorkerOutputPayload {
 
 ### 3.2 `yamlParse.ts`
 ```ts
-export function yamlParse(source: string): WorkflowModel;
+// ParseErrorValue = { message, line, column, reason } — the parser's reason
+// with its native "at line L, column C" suffix stripped.
+export type { ParseErrorValue } from "./types";
+export interface ParseCaps { maxInputBytes?: number; maxUsesScan?: number; }
+export interface ParseOptions { caps?: ParseCaps; }
+export type ParseResult =
+  | { ok: true; model: WorkflowModel }
+  | { ok: false; error: ParseErrorValue };
+export function yamlParse(source: string, options?: ParseOptions): WorkflowModel;
+export function parseWorkflow(source: string, options?: ParseOptions): ParseResult;
+export function parsePermissionBlock(node: unknown): RawPermissionBlock | null;
+// `parseWorkflow` is the errors-as-value form; `yamlParse` unwraps it. Caps have
+// defaults, so the empty source short-circuits without invoking the parser.
+// `parsePermissionBlock` reads whichever permission block exists — top-level or
+// per-job — and normalises both `permissions: read-all` and the per-scope map.
+// Null when the key is absent, which is how the UNSET grant table gets its
+// signal: `{}` is the least-privilege shape and is reported as such, not as an
+// error.
 ```
 eemeli `parseDocument(source, { keepSourceTokens: true })`. One structural traversal:
 walk `jobs` → for each job collect job-level `uses` and `steps[]` → for each step
@@ -230,9 +285,16 @@ N — M further nodes not analyzed" and **never silently drops** the remainder.
 ```ts
 export const MOVING_REFS: readonly string[];   // main master HEAD trunk develop latest
 export const FLOATING_MAJOR_RE: RegExp;        // /^v?\d+$/
+export const SHA40_RE: RegExp;                  // /^[0-9a-f]{40}$/
+export const SHA256_RE: RegExp;                 // /^[0-9a-f]{64}$/
 export function isMovingRef(ref: string): boolean;
+export function isLocalPath(raw: string): boolean;    // `./` or `../` prefixed
+export function isDockerRef(raw: string): boolean;    // `docker://` prefixed
+export function splitRemoteRef(raw: string): RefParts | null;   // last `@` split
 export function classifyOne(raw: string, meta: Omit<UsesRaw, "raw">): ClassifiedUses;
 export function classifyUses(raws: UsesRaw[]): ClassifiedUses[];
+export interface ClassSummary;                  // per-class counts for the class table
+export function summarizeClasses(uses: readonly ClassifiedUses[]): ClassSummary[];
 ```
 Regex/split-based, no network. `remoteRef` split on the **last** `@` (SHAs and
 paths never contain `@`); `owner/repo[/subpath]@ref`. **Adjudicated moving rule
@@ -284,31 +346,26 @@ tag chain (§4 F3) then heads fallback; annotated deref when `type==="tag"`.
   whole fan-out honours `deadlineMs`, and `options.signal` (the worker's Phase-B
   controller) aborts the entire in-flight fan-out.
 
-### 3.5 `permissionAudit.ts`
+### 3.5 `permissionAudit.ts` + `grantTable.ts`
 ```ts
-export function parsePermissions(raw: unknown): RawPermissionBlock | null;
-export function buildGrantTable(model: WorkflowModel): GrantTable;
 export function permissionAudit(model: WorkflowModel): Finding[];
+export function jobAnchor(job: JobNode): number | null;      // source offset of the job head
+export const TOKEN_COUPLING_SCOPES: readonly string[];
+
+// grantTable.ts
+export function buildGrantTable(model: WorkflowModel): GrantTable;
+export function effectiveJobGrants(model: WorkflowModel): GrantRow[];
+export function expandBlock(block: RawPermissionBlock | null): Record<string, …>;
+export function blockScopes(block: RawPermissionBlock | null): string[];
+export function describeGrant(scope: string, level): string; // plain-English semantics
+export function scopeSemantics(scope: string): string;
+export const PERMISSION_SCOPES: readonly string[];
 ```
 Effective scope resolution (job block overrides top per scope; `all: write`/`read`
-as a shorthand; omitted scope = absent). Produces the 5 canonical findings (SPEC
-§4 F5) + the grant table for rendering.
-
-### 3.6 `pinningAudit.ts`
-```ts
-export function pinningAudit(classified: ClassifiedUses[]): Finding[];
-```
-The precise `unpinned-uses` / `moving-ref` / class-note emitter (SPEC §4 F2):
-- **`unpinned-uses` / `error`** — one per `remoteRef` node with `moving === true`.
-- **`unpinned-uses` / `warn`** — one per non-moving `remoteRef`; also one per
-  `invalid` node ("unparseable — never rewritten").
-- **`moving-ref` / `warn`** — one per `moving === true` node, with the plain-English
-  drift explanation. (A moving ref therefore yields two findings: the immutability
-  finding and the drift finding.)
-- **`resolution` / `info`** — one per `sha256` node ("unusual but pinned — not
-  resolved") and one per `docker` node ("registry digest — out of v1 scope"), so no
-  classified node is invisible.
-- **`local`** — no finding (rendered in the class table).
+as a shorthand; omitted scope = absent). The grant table is emitted for EVERY
+workflow: a missing permissions block is an **UNSET** table (`unset: true`,
+`top: null`), which is the information the audit reports — `{}` at top level is
+the least-privilege shape and is reported as such, not as an error.
 
 ### 3.7 `injectionDetect.ts`
 ```ts
@@ -332,7 +389,7 @@ Remediation: "move to `env:` then reference `${VAR}`"; `if:`-sourced findings ca
 the `if:`-specific remediation. Backed by AC-7 (both poles + whole-expression +
 dedupe).
 
-### 3.8 `dangerTriggers.ts`
+### 3.8 `triggerAudit.ts`
 ```ts
 export function dangerousTriggerAudit(model: WorkflowModel): Finding[];
 export function persistCredentialsAudit(model: WorkflowModel): Finding[];
@@ -340,16 +397,29 @@ export function persistCredentialsAudit(model: WorkflowModel): Finding[];
 PR-target/workflow-run + checkout-at-PR-head; token/permission coupling;
 `persist-credentials` true/absent-with-risk.
 
-### 3.9 `yamlRewrite.ts` (offset surgical — the crux)
+### 3.9 `rewrite.ts` (offset surgical — the crux)
 ```ts
 export interface RewriteEdit { start: number; valueEnd: number; text: string; }
-export function buildRewriteEdits(resolutions: Resolution[], classify: ClassifiedUses[]): RewriteEdit[];
+export type ResolutionInput =
+  | readonly Resolution[] | ReadonlyMap<string, Resolution> | Iterable<Resolution>;
+export function toResolutionMap(input: ResolutionInput | null | undefined): Map<string, Resolution>;
+export function offsetsStillHold(source: string, uses: ClassifiedUses): boolean;
+export function isPinnable(resolution: Resolution): resolution is PinnableResolution;
+export function buildRewriteEdits(
+  source: string,
+  resolutions: ResolutionInput | null | undefined,   // the SOURCE comes FIRST
+  classify?: readonly ClassifiedUses[]
+): RewriteEdit[];
 export function applyEdits(source: string, edits: RewriteEdit[]): string;   // right-to-left
-export function yamlRewrite(source: string, resolutions: Resolution[]): string;
+export function pinScalar(uses: ClassifiedUses, sha: string): string;
+export function applyPin(source: string, uses: ClassifiedUses, pin: PinSpec): RewriteEdit;
+export function yamlRewrite(source: string, resolutions: ResolutionInput | null | undefined): string;
 ```
 Only `resolved` resolutions become edits, and **only for `remoteRef` inputs** — a
 `sha40`/`sha256` node is never an edit, so re-pinning the tool's own output is a
-**zero-diff, idempotent** re-run.
+**zero-diff, idempotent** re-run. `offsetsStillHold` re-checks that the bytes at the
+recorded range are still that node's own scalar, so a stale resolution replayed
+against different source can never splice a SHA into the wrong offset.
 
 `edit.text = owner/repo[/subpath]@<sha> # <ref>` — a **single space** before `#`
 (GitHub's / Dependabot's own pin format). The replacement is always an **unquoted
@@ -366,30 +436,69 @@ annotation **after** the (removed) closing-quote position recorded in `valueEnd`
 
 `applyEdits` sorts by `start` desc and splices, so untouched bytes (comments, flow
 spacing, blank lines) are preserved byte-for-byte — the property AC-2/AC-3 lock in.
+Overlapping edits are dropped rather than corrupting the output.
 
 ### 3.10 `diff.ts`
 ```ts
+export const DIFF_CONTEXT_LINES = 3;
 export function unifiedUsesDiff(before: string, after: string): UnifiedDiff;
 ```
 Compact, deterministic LCS over lines; emit hunks with 3 lines of context; `+`/`-`
 pairs. No external dependency (keeps the worker bundle small). Pure/unit-tested.
 
-### 3.11 `compute.ts` (pipeline, shared by worker AND fallback)
+### 3.11 `analyze.ts` — Phase A, one function, the whole offline pipeline
+
 ```ts
-export function analyzeLocal(source: string): Omit<WorkerOutputPayload, "id" | "phase">;   // Phase A (sync)
+export type ReportBody = Omit<WorkerOutputPayload, "id" | "phase">;
+export interface AnalyzeOptions { now?: () => number }   // injectable clock
+export function analyzeLocal(source: string, options?: AnalyzeOptions): ReportBody;
+export function parseErrorCopy(error: ParseErrorValue, phase, engine): string | null;
+export function isOverDeadline(metrics: ToolMetrics, deadlineMs: number): boolean;
+export { EMPTY_METRICS, ANALYZE_TIMEOUT_ERROR } from "./constants";
+```
+
+`analyzeLocal` IS the offline report: cap the input → `yamlParse` → `classifyUses`
+→ the four audits (`permissionAudit`, `injectionDetect`, `dangerousTriggerAudit`,
+`persistCredentialsAudit`) → `unpinned-uses` / `moving-ref` / class-note findings →
+`buildGrantTable` → the no-op `yamlRewrite` (byte-identical with no resolutions,
+AC-2) → `unifiedUsesDiff` (empty, AC-9) → metrics. It returns `ok: true` even for a
+malformed workflow: the parse error rides the envelope as a `ParseErrorValue`.
+
+### 3.12 `compute.ts` (pipeline, shared by worker AND fallback)
+```ts
+export function runPhaseA(source: string): ReportBody;                          // = analyzeLocal
 export async function analyzeResolve(
-  source: string,
-  model: WorkflowModel,
-  classified: ClassifiedUses[],
-  phaseA: Omit<WorkerOutputPayload, "id" | "phase">,   // the Phase-A report to MERGE
+  phaseA: ReportBody,                       // the Phase-A report to MERGE — the first input
+  options: PhaseBOptions = {}
+): Promise<ReportBody>;                     // Phase B (async) → FULL ENVELOPE
+export interface PhaseBOptions {
+  fetchImpl?: FetchLike;    // supplied at the boundary; absent ⇒ merge-contract no-op
+  resolve?: boolean;        // actually spend quota — false ⇒ Phase B never leaves the origin
+  budget?: RateLimitState;
+  concurrency?: number;
+  cache?: Map<string, string>;         // success LRU
+  negativeCache?: Map<string, number>; // negative TTL store
+  signal?: AbortSignal;                // the worker's single Phase-B controller
+  now?: () => number;                  // injectable clock, BOTH timings and receipts
+  deadlineMs?: number;
+}
+export function resetCountdown(resetAt: number, nowMs: number): string;
+export function resolutionFindings(
+  resolutions: readonly Resolution[],
   budget: RateLimitState,
-  fetchImpl: FetchLike,                                // REQUIRED (M11) — supplied at the boundary
-  options?: { signal?: AbortSignal; now?: () => number }
-): Promise<Omit<WorkerOutputPayload, "id" | "phase">>; // Phase B (async) → FULL ENVELOPE
+  nowMs: number                            // INJECTED — the only clock these findings read
+): Finding[];
+export function toOutputPayload(body: ReportBody, dispatch: { id: number; phase }): WorkerOutputPayload;
 ```
 Single source of semantics: the worker and the main-thread fallback both call these,
 so the two paths cannot drift. Phase A never touches the network; Phase B is the only
 fetch site, and `fetchImpl` is injected from outside `_lib`.
+
+**DETERMINISM (AC-15):** `resolutionFindings` takes the `nowMs` the caller injects —
+the same one `refResolver` stamps receipts with — and never reads the ambient clock,
+so two runs over the same inputs produce byte-identical findings, including a
+future-dated 429 fixture whose countdown would otherwise track the wall clock.
+`_lib/__tests__/analyzeResolve.test.ts` pins that with a serialization compare.
 
 **`analyzeResolve` merge contract (C1 — the invariant a builder must not break):**
 
@@ -541,8 +650,9 @@ merged**.
  [debounce by size]  ──►  _workers/compute.worker.ts (id = monotonic, phase = "A")
                               │
                     PHASE A  ─┴─ analyzeLocal(source)   [sync, no network, watchdog 1.5s ARMED]
-                              │   yamlParse → classify → pinningAudit → permissionAudit
-                              │   → injectionDetect → dangerTriggers → moving-ref findings
+                              │   yamlParse → classify → permissionAudit → grantTable
+                              │   → injectionDetect → triggerAudit → unpinned/moving-ref findings
+                              │   → no-op yamlRewrite (byte-identical) → unifiedUsesDiff (empty)
                               ▼
                       post {id, phase:"A", …FULL offline report…}  ──► applyResult()  (paint immediately)
                               │   watchdog CLEARED here — it can never fire during Phase B
@@ -550,11 +660,11 @@ merged**.
                     (autoResolve || "Resolve & pin")  &&  Phase A ok && remoteRefs present
                               │  debounce 500ms · LRU dedup
                     PHASE B  ▼  phase: "B"   (previous AbortController aborted; new one armed)
-                              │   analyzeResolve(source, model, classified, phaseA, budget, fetch)
+                              │   analyzeResolve(phaseA, { fetchImpl, budget, now, … })
                               │   resolveRefs (pool 4, 2-unit budget reserve, per-ref timeout,
                               │                whole fan-out signal-abortable)
-                              │   → yamlRewrite (offset edits) → unifiedUsesDiff
-                              │   → resolution findings + receipts  →  MERGE with phaseA.findings
+                              │   → buildRewriteEdits(source, resolutions, classified) → applyEdits
+                              │   → unifiedUsesDiff → resolutionFindings(…, nowMs) → MERGE
                               ▼
                       post {id, phase:"B", …FULL merged envelope…}  ──► applyResult()  (atomic, field-merged)
                               │
@@ -613,16 +723,21 @@ calls** (AC-16):
 
 | Failure | Detected by | Graceful behavior | User-facing copy |
 |---|---|---|---|
-| **404 unknown ref** | `resolveRefs` sees 404 | `status=unknown-ref`, keep original value, finding + receipt with endpoint; negative-cache for `RESOLVE_NEGATIVE_TTL_MS` | "`owner/repo@vX` — unknown ref; kept original. Verify the tag exists." |
-| **tag moved / ref drift** | the receipt's `resolvedAt` is older than the tag's own history, or a re-resolve returns a different sha | keep the annotated YAML (never silently re-pin), re-emit the pin finding, offer **Re-resolve** | "A SHA is a point-in-time snapshot: the tag can move later. This receipt was resolved at {resolvedAt} — re-resolve to check for drift." |
-| **403 / 429 rate-limit** | 403/429 **or** `remaining - inFlight <= reserveFloor` | stop fan-out; remaining refs `rate-limited`; keep originals; report + receipts intact | `x-ratelimit-remaining: 0` ⇒ amber banner: "GitHub API hourly limit (60/hr, per IP) reached — resets in {Xm}. {N} refs left unverified; the full report is still below." `Retry-After` ⇒ "…retry in {Xs}…" · rate-headless 403 ⇒ "GitHub is temporarily blocking requests from this network ({resource}) — the full report is still below." |
-| **CORS / offline / blocked** | `fetch` throws / `onerror` | `status=network-error`; keep originals; Phase A offline report still renders | "Can't reach api.github.com (offline or blocked). Analysis completed without pinning." |
-| **child of malformed YAML** | `yamlParse` returns `!ok` | settle `fatalError` with line/col, clear report | "That doesn't parse as a workflow YAML — {line}:{col}: {reason}." |
-| **oversized workflow** | `bytes > MAX_INPUT_BYTES` | truncate to cap **on a code-point boundary**, set `metrics.truncated`, report original bytes | "Trimmed to 256 KiB for analysis (original {N} KiB shown)." |
-| **`uses:` scan cap** | `usesCap.capped` | keep counting `seen`; report the overflow | "`uses:` scan capped at 2,000 nodes — {M} further nodes were not analyzed." |
-| **worker crash** | `onerror` / `onmessageerror` | `degradeToMainThread` → same core at `SYNC_DEADLINE_MS`, amber banner | "Main-thread mode active — Web Worker unavailable." |
-| **catastrophic parse hang** | watchdog fires on Phase A | terminate + respawn bump id; friendly error; input re-enabled | "Analysis aborted — input was too complex to process in time." |
-| **superseded Phase B** | a newer message arrives mid-resolve | worker-scope `AbortController` aborts the in-flight fan-out; its late results are dropped by the stale guard | (silent — the newest result wins) |
+| **404 unknown ref** | `resolveRefs` sees 404 on both namespaces | `status=unknown-ref`, keep the original value, finding + receipt with the endpoint; negative-cache for `RESOLVE_NEGATIVE_TTL_MS` | `Unknown ref — actions/checkout@v1`: "the tag and the branch lookup both 404'd, so the original value was kept and nothing was rewritten. Verify the tag exists (and that the repository is public)." |
+| **tag moved / ref drift** | a re-resolve returns a different sha (or the reader runs the receipt's own `git ls-remote`) | the annotated YAML is never silently re-pinned; the receipt names the hop and the SHA | `Pinned to a commit SHA — actions/checkout@v4`: "Resolved through 2 hops of the read-only GitHub API, annotated tag object {short} dereferenced to commit {short}. A SHA is a point-in-time snapshot: the tag it replaced can still move, so re-resolve before a release to catch drift." |
+| **403 / 429 rate-limit** | 403/429 **or** `remaining - inFlight <= reserveFloor` | stop fanning out; the refs after the floor are `rate-limited`; keep originals; report + receipts intact | Per-ref finding: "The GitHub API limit stopped this ref ({note}). {remaining} of {limit} requests remain this hour. The window resets in {countdown}. The offline report above is still complete." Plus the amber banner (`data-testid="rate-limit-banner"`): "GitHub's hourly API limit is reached · {remaining} of {limit} left · {reset}" — "Nothing was rewritten. The offline report above is still complete — findings, permissions and the uses classification are untouched — so re-run “Resolve & pin” after the window resets." |
+| **unsafe owner/repo/ref** | the path-safety gate in `refResolver` | **refused before any request is sent**: `status=unsafe-ref`, no endpoint named in the receipt, an empty chain | `Not resolved — …`: "This reference was refused before any request was sent: the owner \"{owner}\" is not a safe GitHub owner name. Nothing was rewritten and the offline report above is still complete." |
+| **CORS / offline / blocked** | `fetch` throws / `onerror` | `status=network-error`; keep originals; the Phase-A offline report still renders | `Not resolved — {label}`: "api.github.com could not be read for this ref ({note}). Nothing was rewritten and the offline report above is still complete." |
+| **malformed YAML** | `parseWorkflow` returns `!ok` (eemeli's `doc.errors[0]`) | settle `fatalError` via `parseErrorCopy`, clear the report, keep the editor enabled | "That doesn't parse as a workflow YAML — {line}:{column}: {message}." The real string is `That doesn't parse as a workflow YAML — 6:1: All mapping items must start at the same column.`: eemeli's own reason with its `at line L, column C` suffix stripped and the position re-attributed by `toParseError` (no position ⇒ `unknown position`) |
+| **oversized workflow** | `bytes > MAX_INPUT_BYTES` | truncate to the cap **on a code-point boundary**, set `metrics.truncated`, report the **ORIGINAL** bytes in `metrics.byteCount` | the editor's chip: "trimmed to 256 KiB for analysis" (amber, mono, `tabular-nums`) — and the `bytes` metric keeps the ORIGINAL count, so the cap never makes a workflow look smaller than it is |
+| **`uses:` scan cap** | `usesCap.capped` | keep counting `usesSeen`; the amber strip reports the remainder | `UsesCapNotice` (`role="status"`, aria-label "Uses scan cap", `data-testid="uses-cap-notice"`): "`uses:` scan capped at 2,000 nodes — the remaining {N} were not analyzed. Everything below describes the first {M} nodes only." |
+| **worker crash** | `onerror` / `onmessageerror` | `degradeToMainThread` → the same core at `SYNC_DEADLINE_MS`, amber banner | "Worker crashed — switched to main-thread mode" |
+| **catastrophic parse hang** | the watchdog fires on Phase A | terminate + respawn, bump the request id, settle the friendly error, keep the input enabled | `ANALYZE_TIMEOUT_ERROR`: "Analysis exceeded the time budget — this workflow is too complex to process in time." |
+| **superseded Phase B** | a newer message arrives mid-resolve | the worker-scope `AbortController` aborts the in-flight fan-out; its late results are dropped by the stale guard | (silent — the newest result wins) |
+
+The copy column is the shipped string, not a paraphrase: `_lib/compute.ts`,
+`_lib/analyze.ts` (`parseErrorCopy`) and `_lib/constants.ts` own it, and
+`e2e/*.spec.ts` asserts the operative sentences in a real browser.
 
 ---
 
@@ -643,41 +758,59 @@ connect-src 'self' https://api.github.com https://*.supabase.co wss://*.supabase
 the call is made by the visitor's browser, never by a server relay, which is why the
 origin must be in `connect-src` at all. `*.supabase.co`/`wss:` are present solely for
 optional env-gated OAuth (inert when keys are absent — zero runtime connections).
-The e2e **allow-list equals this set exactly** (§10).
+
+Two statements, not one: the **default-path guard** asserts that nothing leaves the
+origin at all (`autoResolve` is off, so the e2e allow-list is empty and any
+non-same-origin request fails the journey), while this **CSP declaration** is the
+permission the opt-in resolver *may* use once a visitor asks for a resolve. They are
+complementary, and the second is not evidence that the first happened. §10 spells out
+the URL-shape guard that then applies to every request the resolver does make.
 
 ---
 
 ## 10. Testing / oracle strategy (beat-the-bar §9a)
 
 - **Recorded VCR fixtures (default).** `_lib/__tests__/fixtures/*.json` replay the
-  resolver chain (`200` lightweight, `200` annotated + deref, `404`, `403`, `429`)
-  offline through the `fetchImpl` seam — deterministic, fast, in the default CI path.
-  These back AC-4/AC-10.
-- **Live oracle (gated job, not in the default green gate).** A scheduled
-  `.github/workflows/oracle.yml` (`workflow_dispatch` + weekly cron) resolves tag set
-  **T** against real `api.github.com` **and** cross-checks each against
-  `git ls-remote "<url>" "refs/tags/<ref>^{}"` (git is present in the build box);
-  it fails on drift. **T** covers one lightweight tag, one annotated tag, one subpath
-  action, one branch, one moving alias (`@latest`), one floating major (`@v0`), and
-  one deliberately unknown ref. The runner's `403`/`429` is reported
-  **SKIP, not FAIL** — the GitHub-Actions runner IP is the only Anchorflow-side IP
-  that ever talks to the API, and its quota is not the visitor's. Locks in AC-5 and
-  catches GitHub API changes.
-- **Unit (vitest, node).** Every `_lib` module has a suite in `_lib/__tests__/`;
-  node env, pure core, no DOM/React. Includes the `_lib` source-scan test (no
-  `fetch`/`globalThis.fetch` under `_lib/**`), the caps-name grep test, the
-  `analyzeResolve` merge test, and the `shouldPromptSignIn` policy matrix.
-- **E2E (Playwright, real standalone artifact).** `smoke` (redirect, landmarks,
-  paste→report journey, persistence under `anchorflow-tool-storage`, ⌘K, **zero
-  external requests on first paint with `autoResolve=false`**),
-  `demos` (resolve journey with a **rate-limit/offline stub** + the catastrophic-input
-  degradation with a bounded timeout + a 5,000-line no-freeze journey),
-  `visual` (no horizontal overflow 390/1440,
-  single-column below `lg`, **zero-egress request guard**, zero uncaught errors).
-  Pixel baselines ship GREEN-or-SKIPPED.
-- **Coverage gates** (SchemaCraft's): functions ≥ 90, lines/statements ≥ 80,
-  branches ≥ 70, scoped to the pure core.
-- Config reuse: copy regex-craft `tsconfig.json`, `eslint.config.mjs`,
-  `vitest.config.mts`, `playwright.config.ts` (swap port 3002→**3004**), the auth
-  files (`_lib/supabaseClient.ts`, `_lib/authGate.ts`, `_hooks/useAuth.ts`), and the
-  UI primitives under `components/ui`.
+  resolver chain (`200` lightweight, `200` annotated + deref, `404`, `403` with
+  `x-ratelimit-remaining: 0`, `429` with `Retry-After`) offline through the
+  `fetchImpl` seam — deterministic, fast, in the default CI path. These back
+  AC-4/AC-10, and the future-dated 429 fixture is what the AC-15 determinism
+  compare is built on.
+- **Live oracle (gated job, not in the default green gate).**
+  `.github/workflows/oracle.yml`, **shipped**: `workflow_dispatch` **+ a weekly cron
+  (`17 6 * * 0`, Sundays 06:17 UTC)** runs
+  `npx vitest run app/tools/anchorflow/_lib/__tests__/refResolver.live.test.ts` with
+  `GH_LIVE=1`. That suite resolves tag set **T** against the real `api.github.com`,
+  compares every returned SHA against the pinned expectations in
+  `_lib/__tests__/fixtures/index.ts`, and cross-checks each with
+  `git ls-remote "<url>" "refs/tags/<ref>^{}"` (git is present in the build box) —
+  so an API change or an upstream tag drift fails the job. **T** covers one
+  lightweight tag, one annotated tag, one subpath action, one branch, one moving
+  alias (`@latest`), one floating major (`@v0`) and one deliberately unknown ref.
+  The step is `continue-on-error: true` and the following step prints the verdict:
+  a runner `403`/`429` or an offline host is reported **SKIP, not FAIL** — the
+  GitHub-Actions runner IP is the only Anchorflow-side IP that ever talks to the
+  API, and its quota is not the visitor's. Locks in AC-5 and catches GitHub API
+  changes without ever turning a shared IP into a red suite.
+- **Unit (vitest, node).** Every `_lib` module has a suite in `_lib/__tests__/`
+  (plus the tool-level `__tests__/` for the first-load boundary and the contrast
+  floors); node env, pure core, no DOM/React. Includes the `_lib` source-scan test
+  (no `fetch`/`globalThis.fetch` under `_lib/**`), the caps-name grep test, the
+  `analyzeResolve` merge test, the `shouldPromptSignIn` policy matrix, the
+  byte-cap/surrogate-pair truncation tests, the path-safety gate tests, and the
+  determinism serialization compare.
+- **E2E (Playwright, real standalone artifact).** Four specs:
+  `smoke` (redirect, landmarks, paste→report journey, persistence under
+  `anchorflow-tool-storage`, ⌘K, the palette's Resolve & pin in both its enabled
+  and inert states, copy/theme, sign-in offer-never-lock, the findings journey);
+  `resolve` (the invocable resolve journey, every pinned SHA, the rate-limit and
+  offline friendly copy, and the tightened AC-12 URL-shape guard);
+  `pipeline` (worker happy path, the degraded main-thread path returning the SAME
+  report, and the **catastrophic watchdog journey** — a worker that never answers
+  settles the friendly copy inside a bounded timeout with the input still enabled);
+  `visual` (responsive structure at 390/1440, stacking, **zero-egress request
+  guard**, zero uncaught errors). Pixel baselines ship GREEN-or-SKIPPED.
+- **Coverage gates** (SchemaCraft's, **shipped and wired into
+  `.github/workflows/ci.yml`**): functions ≥ 90, lines/statements ≥ 80, branches
+  ≥ 70, scoped to the pure core by `vitest.config.mts`, run by
+  `npm run test:coverage` and gated — a run below any threshold exits non-zero.

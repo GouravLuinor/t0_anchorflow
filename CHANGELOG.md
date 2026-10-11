@@ -4,6 +4,15 @@ All notable changes to Anchorflow are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 calendar versioning for release passes (`MAJOR.MINOR.PATCH` dated per entry).
 
+**Version reset (stated, not hidden).** The internal scaffold pass below is
+numbered **1.8.0** — it was the last numbered build of the *shell*, before the
+domain pass was finished. The first release of the finished product resets to
+**1.0.0**, so the public version starts at the product's first shippable state
+rather than inheriting the shell's bump count. The newest entry is therefore
+`1.0.0`, and `1.8.0` is kept below it as the historical record of the scaffold.
+
+[1.0.0]: https://anchor.norai.tech
+
 ## [1.0.0] — 2026-10-11 — First production release
 
 ### Added
@@ -42,8 +51,12 @@ browser, with an opt-in read-only GitHub resolver for SHA pinning.
   repeated typo never re-spends quota, and a debounced Phase B that never fires
   per keystroke.
 - `autoResolve` defaults to **OFF**: the default path makes zero external
-  requests, asserted in CI by `e2e/visual.spec.ts`. The request guard's
-  allow-list and the CSP `connect-src` are exactly equal.
+  requests, asserted in CI by `e2e/visual.spec.ts`. The default-path guard's
+  allow-list is empty (nothing may leave the origin), and the CSP separately
+  *declares* `api.github.com` as the only app-data egress the opt-in resolver may
+  use — the permission is granted there, the default simply never spends it. Every
+  request the resolver does make is re-checked for origin, empty query, empty
+  fragment and a traversal-free owner/repo.
 
 **Architecture**
 - Web Worker pipeline (`_workers/compute.worker.ts`) owning all parsing,
@@ -61,6 +74,48 @@ browser, with an opt-in read-only GitHub resolver for SHA pinning.
   the five interaction states on every control, one authored motion, and
   keyboard shortcuts (`⌘K` palette, `⌘P` example, `⌘⇧C` copy, `⌘↵` focus).
 
+### Changed — the review-fix pass (same release)
+
+Two independent reviews returned GO-WITH-FIXES; every finding is applied here
+rather than carried forward.
+
+- **Determinism:** `resolutionFindings` no longer reads the ambient clock. The
+  rate-limit countdown is rendered against the `nowMs` the caller injects — the
+  same one the resolver stamps receipts with — pinned by a regression test that
+  builds a **future-dated 429 fixture twice** and asserts byte-identical output.
+- **Byte-accurate input cap:** `truncateForDispatch` (moved into `_lib` so it can
+  be unit-tested without a DOM) gates on `countBytes` and cuts on a code-point
+  boundary. A CJK-heavy paste can no longer sail past the cap, and a surrogate
+  pair can no longer be split.
+- **Path safety:** the resolver now refuses an owner, repo or ref that fails a
+  charset / `..`-traversal / length check — reporting it as a `resolution`
+  finding with the reason, before any request is sent. Never a silent fetch and
+  never a silent drop. The e2e AC-12 shape guard was tightened to the same rule.
+- **Contrast:** the status-strip separators move from `text-zinc-600` (3.0:1 light
+  / 3.6:1 dark — below AA) to `text-zinc-500` (4.6:1 / 5.1:1). The ratios are
+  computed from the shipped `app/globals.css` by a new test, so the claim cannot
+  drift again.
+- **Silent drop:** a capped `uses:` scan now reports itself. The core carries
+  `usesSeen` alongside `usesScanned`, and an amber strip states how many nodes
+  were analysed and how many were not.
+- **Dead code:** `isFreshResponse` is deleted; the single `isStaleDispatch`
+  guard now covers both the inbound dispatch and the outbound reply.
+- **Correctness:** `useAuth` no longer labels this tool `regexcraft`.
+- **Bar artifacts:** `.github/workflows/oracle.yml` (weekly live differential
+  oracle, skip-not-fail on 403/429), coverage gates scoped to the pure core in
+  `vitest.config.mts` + `test:coverage` wired into `ci.yml`,
+  `scripts/bench-phase-a.ts` + `npm run bench` (+ pinned `tsx`), a
+  `git status --porcelain` refusal guard in `deploy.sh` ahead of the reset, and
+  `ecosystem.config.js` (PM2 `anchor-norai`).
+- **Polish:** a "Resolve & pin" command in the ⌘K palette (inert when nothing is
+  pending), the keycap shadow as a theme-aware token, a monochrome provider mark,
+  a press state on the FAQ summary, a disabled variant on the per-finding copy,
+  a one-line severity legend, `TRUST_PILLS` rendered from its single source, and
+  the dead `lib/clipboard.ts` removed.
+- **Docs:** every document is regenerated from the shipped surface and the
+  measured numbers — the `_lib` module map, the failure-mode copy, the token table
+  and the caps table now match the code.
+
 ### Performance
 
 First Load JS for `/tools/anchorflow` is **180 kB** against the 200 kB budget.
@@ -71,9 +126,7 @@ fallback, both of which are dynamic boundaries. `framer-motion` is loaded the
 first time a toast actually appears. The remaining first load is Next.js/React
 framework plus the workstation chrome — measured in `BENCHMARKS.md`.
 
-[1.8.0]: https://anchor.norai.tech
-
-## [1.8.0] — 2026-10-11
+## [1.8.0] — 2026-10-11 — the application shell
 
 ### Added — Tier-0 application shell (this build)
 
@@ -175,5 +228,10 @@ tested.
 - First Load JS is 213 kB against the 200 kB budget (measured; see
   `BENCHMARKS.md`).
 - No `yaml` dependency yet, and no oracle job — both arrive with the domain pass.
+
+All four gaps above are **closed by 1.0.0**: the domain core, the `yaml`
+dependency and the gated live-oracle job all ship in the release above, and First
+Load JS is 180 kB — 20 kB under budget. They are left here as the honest record of
+what the 1.8.0 shell did not have.
 
 [1.8.0]: https://anchor.norai.tech

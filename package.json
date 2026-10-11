@@ -2,7 +2,7 @@
   "name": "anchorflow",
   "version": "1.0.0",
   "private": true,
-  "description": "Anchorflow — pin, audit and diff GitHub Actions workflows entirely in your browser",
+  "description": "Anchorflow \u2014 pin, audit and diff GitHub Actions workflows entirely in your browser",
   "scripts": {
     "dev": "next dev -p 3004",
     "build": "next build",
@@ -10,6 +10,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "bench": "tsx scripts/bench-phase-a.ts",
     "test:watch": "vitest",
     "test:e2e": "playwright test"
   },
@@ -37,12 +39,14 @@
     "@types/node": "^22.13.4",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
+    "@vitest/coverage-v8": "^4.1.11",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.39.5",
     "eslint-config-next": "^15.5.23",
     "postcss": "^8.5.2",
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
+    "tsx": "^4.23.15",
     "typescript": "^5.7.3",
     "vitest": "^4.1.11"
   }

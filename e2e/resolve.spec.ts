@@ -149,14 +149,24 @@ test.describe("Resolve & pin", () => {
 
     // ── AC-12: the ONLY egress is api.github.com, path-shaped only ───────
     expect(calls.length).toBeGreaterThan(0);
+    // Tightened guard: owner and repo must match the resolver's own safe
+    // charset, carry no `..` traversal and contain no slash; the ref tail is
+    // query/fragment-free. A URL that fails any of that is a path-injection
+    // regression, not a shape nit.
     const SHAPE =
-      /^\/repos\/[^/]+\/[^/]+\/git\/(ref\/(tags|heads)\/[^?#]+|tags\/[0-9a-f]{40})$/;
+      /^\/repos\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)\/git\/(ref\/(tags|heads)\/[^?#]+|tags\/[0-9a-f]{40})$/;
     for (const url of external) {
       const parsed = new URL(url);
       expect(parsed.origin).toBe("https://api.github.com");
       expect(parsed.search).toBe("");
       expect(parsed.hash).toBe("");
-      expect(SHAPE.test(parsed.pathname), url).toBe(true);
+      const match = SHAPE.exec(parsed.pathname);
+      expect(match, url).not.toBeNull();
+      const [, owner, repo] = match ?? [];
+      expect(owner, url).not.toContain("..");
+      expect(repo, url).not.toContain("..");
+      expect(owner, url).not.toContain("/");
+      expect(repo, url).not.toContain("/");
     }
   });
 

@@ -29,6 +29,18 @@ export const SEVERITY_BANDS: ReadonlyArray<{
   { severity: "info", label: "info" },
 ];
 
+/**
+ * The one-line legend under the findings header (SPEC §4 F5–F8): what each
+ * band means in this tool, in the order the bands render. One source, so the
+ * legend, the chips and the bands can never describe three different ladders.
+ */
+export const SEVERITY_LEGEND: Readonly<Record<Severity, string>> = {
+  error: "critical — an exploitable risk in this workflow",
+  warn: "major — a moving target or an over-broad grant",
+  minor: "minor — worth knowing, not blocking",
+  info: "info — the pin, the receipt and the notes",
+};
+
 /** Grade rank, worst-first — the ordering the summary chips keep. */
 const SEVERITY_RANK: Record<Severity, number> = {
   error: 0,

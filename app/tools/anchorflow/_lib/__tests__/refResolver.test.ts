@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { classifyOne } from "../classify";
-import { API_ORIGIN, resolveRefs } from "../refResolver";
+import {
+  API_ORIGIN,
+  isSafeOwner,
+  isSafeRef,
+  isSafeOwnerRepoSegment,
+  resolveRefs,
+  unsafeRefReason,
+} from "../refResolver";
 import { RATE_LIMIT_RESERVE } from "../constants";
 import { RECORDED, recordedResponse } from "./fixtures";
 import type { RecordedFixture } from "./fixtures";
@@ -299,6 +306,149 @@ describe("resolveRefs — the recorded chain (AC-4)", () => {
       now: () => 1_770_270_100_000,
     });
     expect(run.resolutions[0].status).toBe("resolved");
+  });
+});
+
+// ── Path safety — nothing unsafe is ever fetched ──────────────────────────────
+
+describe("path safety — the pre-flight gate", () => {
+  const NOW = 1_770_270_100_000;
+
+  it("accepts ordinary owners, repos and refs", () => {
+    expect(isSafeOwner("actions")).toBe(true);
+    expect(isSafeOwner("github")).toBe(true);
+    expect(isSafeOwnerRepoSegment("codeql-action")).toBe(true);
+    expect(isSafeOwnerRepoSegment("super_linter")).toBe(true);
+    expect(isSafeOwnerRepoSegment("some.repo")).toBe(true);
+    expect(isSafeRef("v4")).toBe(true);
+    expect(isSafeRef("v4.2.0")).toBe(true);
+    expect(isSafeRef("release/v1")).toBe(true);
+    expect(isSafeRef("1.2.3-rc.1")).toBe(true);
+  });
+
+  it("rejects traversal, slashes and unsafe characters in owner/repo", () => {
+    expect(isSafeOwner("..")).toBe(false);
+    expect(isSafeOwner("../evil")).toBe(false);
+    expect(isSafeOwner("actions/checkout")).toBe(false);
+    expect(isSafeOwnerRepoSegment("")).toBe(false);
+    expect(isSafeOwnerRepoSegment("a".repeat(101))).toBe(false);
+    expect(isSafeOwner("a".repeat(40))).toBe(false);
+    expect(isSafeOwner("has space")).toBe(false);
+    expect(isSafeOwnerRepoSegment("semi;colon")).toBe(false);
+    expect(isSafeOwnerRepoSegment("enc%2Foded")).toBe(false);
+  });
+
+  it("rejects an over-long, traversal-bearing or hostile ref", () => {
+    expect(isSafeRef("")).toBe(false);
+    expect(isSafeRef("..")).toBe(false);
+    expect(isSafeRef("a".repeat(129))).toBe(false);
+    expect(isSafeRef("v1?x=1")).toBe(false);
+    expect(isSafeRef("v1#frag")).toBe(false);
+    expect(isSafeRef("v1\u0000")).toBe(false);
+    expect(isSafeRef("feat~1")).toBe(false);
+    expect(isSafeRef("feat^")).toBe(false);
+    expect(isSafeRef("a:b")).toBe(false);
+  });
+
+  it("names the component that failed, or null when the key is safe", () => {
+    expect(unsafeRefReason("actions/checkout@v4")).toBeNull();
+    expect(unsafeRefReason("act ions/repo@v1")).toMatch(/owner/);
+    // A leading `../` is classified LOCAL by Phase A and never reaches here;
+    // the traversal that DOES reach it is a `..` segment in the path.
+    expect(unsafeRefReason("actions/../repo@v1")).toMatch(/repository/);
+    expect(unsafeRefReason("actions/../repo@v1")).toMatch(/repository/);
+    expect(unsafeRefReason("actions/checkout@v1?x=1")).toMatch(/ref/);
+  });
+
+  it("refuses an unsafe owner WITHOUT a single request", async () => {
+    const { calls, fetchImpl } = cassette();
+    const run = await resolveRefs([refNode("act ions/checkout@v4")], {
+      fetchImpl,
+      budget: { ...BASE_BUDGET },
+      now: () => NOW,
+    });
+    expect(calls).toEqual([]);
+    expect(run.resolutions).toHaveLength(1);
+    const [resolution] = run.resolutions;
+    expect(resolution.status).toBe("unsafe-ref");
+    expect(resolution.receipt?.note).toMatch(/owner/);
+    expect(resolution.receipt?.chain).toEqual([]);
+    // The budget was never touched — nothing was dispatched.
+    expect(run.budget.remaining).toBe(BASE_BUDGET.remaining);
+  });
+
+  it("refuses an unsafe repo and an unsafe ref the same way", async () => {
+    const { calls, fetchImpl } = cassette();
+    const run = await resolveRefs(
+      [refNode("actions/..@v4"), refNode("actions/checkout@v4?x=1")],
+      { fetchImpl, budget: { ...BASE_BUDGET }, now: () => NOW }
+    );
+    expect(calls).toEqual([]);
+    expect(run.resolutions.map((r) => r.status)).toEqual([
+      "unsafe-ref",
+      "unsafe-ref",
+    ]);
+    expect(run.resolutions[1].receipt?.note).toMatch(/ref/);
+  });
+
+  it("never lets an unsafe ref poison the caches", async () => {
+    const { fetchImpl } = cassette();
+    const cache = new Map<string, string>();
+    const negative = new Map<string, number>();
+    await resolveRefs([refNode("act ions/checkout@v4")], {
+      fetchImpl,
+      budget: { ...BASE_BUDGET },
+      cache,
+      negativeCache: negative,
+      now: () => NOW,
+    });
+    expect(cache.size).toBe(0);
+    expect(negative.size).toBe(0);
+  });
+
+  it("still resolves every safe ref in the same run", async () => {
+    const { calls, fetchImpl } = cassette();
+    const run = await resolveRefs(
+      [refNode("actions/checkout@v4"), refNode("act ions/checkout@v4")],
+      { fetchImpl, budget: { ...BASE_BUDGET }, now: () => NOW }
+    );
+    expect(run.resolutions.map((r) => r.status)).toEqual([
+      "resolved",
+      "unsafe-ref",
+    ]);
+    expect(calls.length).toBeGreaterThan(0);
+  });
+
+  it("addresses only api.github.com, and only safe owner/repo shapes (AC-12)", async () => {
+    const { calls, fetchImpl } = cassette();
+    await resolveRefs(
+      [
+        refNode("actions/checkout@v4"),
+        refNode("pnpm/pnpm@v9.12.0"),
+        refNode("actions/checkout@main"),
+        refNode("github/codeql-action/init@v3"),
+      ],
+      { fetchImpl, budget: { ...BASE_BUDGET }, now: () => NOW }
+    );
+
+    // The tightened AC-12 guard: a safe owner AND repo charset, no traversal,
+    // no slash inside either segment, no query and no fragment.
+    const SHAPE =
+      /^\/repos\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)\/git\/(ref\/(tags|heads)\/[^?#]+|tags\/[0-9a-f]{40})$/;
+    expect(calls.length).toBeGreaterThan(0);
+    for (const call of calls) {
+      const url = new URL(call.url);
+      expect(url.origin + "/").toBe(`${API_ORIGIN}/`);
+      expect(url.search).toBe("");
+      expect(url.hash).toBe("");
+      const match = SHAPE.exec(url.pathname);
+      expect(match, call.url).not.toBeNull();
+      const [, owner, repo] = match ?? [];
+      expect(owner, call.url).not.toContain("..");
+      expect(repo, call.url).not.toContain("..");
+      expect(owner, call.url).not.toContain("/");
+      expect(repo, call.url).not.toContain("/");
+    }
   });
 });
 

@@ -12,12 +12,16 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  *     the SAME report — proved by forcing a worker death and asserting the
  *     instrument still settles with byte-identical output, under the amber
  *     "Main-thread mode active" banner with `data-engine="main"`;
+ *   · the CATASTROPHIC path never hangs: a worker that accepts a dispatch and
+ *     never answers is killed by the 1.5 s Phase-A watchdog, which settles the
+ *     friendly verdict and leaves the editor usable (BAR §10 item 7);
  *   · neither path issues a single external request (the offline default), so
  *     this suite doubles as a privacy regression guard.
  *
- * The forced failure is a real browser-side `onerror` on a Worker that dies on
- * construction — the same signal `spawnWorker` handles when a CSP or the
- * platform kills workers — never a test-only backdoor in the app.
+ * The forced failures are real browser-side Worker behaviours — a worker that
+ * dies on construction (the `onerror` degradation signal, exactly what a CSP or
+ * the platform produces) and a worker that never answers a dispatch (the
+ * watchdog's reason to exist) — never test-only backdoors in the app.
  */
 
 const TOOL_URL = "/tools/anchorflow";
@@ -156,6 +160,63 @@ async function killWorkerOnSpawn(page: Page): Promise<void> {
   });
 }
 
+/**
+ * A worker that accepts the FIRST dispatch and never answers it — the
+ * catastrophic case the watchdog exists for. Every worker spawned afterwards
+ * is the real one, so the journey also proves the terminate + respawn path
+ * recovers instead of leaving the instrument dead.
+ */
+async function swallowFirstDispatch(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const RealWorker = window.Worker;
+    let spawned = 0;
+
+    class SilentFirstWorker {
+      inner: Worker;
+      silent: boolean;
+
+      constructor(url: URL | string) {
+        spawned += 1;
+        this.inner = new RealWorker(url);
+        // Only the FIRST worker is silent: the watchdog's respawn must be able
+        // to answer, which is what makes this a recovery journey too.
+        this.silent = spawned === 1;
+      }
+
+      get onmessage(): ((event: MessageEvent) => void) | null {
+        return this.inner.onmessage;
+      }
+      set onmessage(handler: ((event: MessageEvent) => void) | null) {
+        this.inner.onmessage = handler;
+      }
+      get onerror(): ((event: ErrorEvent) => void) | null {
+        return this.inner.onerror;
+      }
+      set onerror(handler: ((event: ErrorEvent) => void) | null) {
+        this.inner.onerror = handler;
+      }
+      get onmessageerror(): ((event: MessageEvent) => void) | null {
+        return this.inner.onmessageerror;
+      }
+      set onmessageerror(handler: ((event: MessageEvent) => void) | null) {
+        this.inner.onmessageerror = handler;
+      }
+
+      postMessage(message: unknown): void {
+        // Swallowed: no reply will ever come for this dispatch.
+        if (this.silent) return;
+        this.inner.postMessage(message);
+      }
+
+      terminate(): void {
+        this.inner.terminate();
+      }
+    }
+
+    window.Worker = SilentFirstWorker as unknown as typeof Worker;
+  });
+}
+
 /** Every external URL the page asked for — must stay empty on this journey. */
 function trackExternal(page: Page): string[] {
   const seen: string[] = [];
@@ -190,12 +251,21 @@ async function fillStable(page: Page, value: string): Promise<void> {
   }).toPass({ timeout: READY_TIMEOUT });
 }
 
-async function settleReport(page: Page): Promise<void> {
-  // The instrument is settled when the rewrite is painted and no skeleton
-  // remains — the diagnostic echo mirrors the core's own output text.
-  await expect(page.getByTestId("diagnostic-echo")).not.toHaveText("", {
-    timeout: READY_TIMEOUT,
-  });
+/**
+ * The instrument is settled when the rewrite is painted and no skeleton
+ * remains — the diagnostic echo mirrors the core's own output text.
+ *
+ * `marker` ties the settle to WHAT was typed: without it, the seeded workflow's
+ * own report already satisfies the wait, so a fingerprint taken after a fill
+ * could still be describing the seed and pass for the wrong reason. A marker
+ * only the fresh source contains closes that race.
+ */
+async function settleReport(page: Page, marker?: string): Promise<void> {
+  const echo = page.getByTestId("diagnostic-echo");
+  await expect(echo).not.toHaveText("", { timeout: READY_TIMEOUT });
+  if (marker) {
+    await expect(echo).toContainText(marker, { timeout: READY_TIMEOUT });
+  }
   await expect(station(page).getByText("Ready")).toBeVisible({
     timeout: READY_TIMEOUT,
   });
@@ -214,7 +284,7 @@ test("happy path: the compute runs in the worker and settles the offline report"
   });
 
   await fillStable(page, FINGERPRINT_INPUT);
-  await settleReport(page);
+  await settleReport(page, "name: fingerprint");
 
   // The page really posted a Phase-A dispatch into a real worker carrying the
   // text the user typed — the off-main-thread claim, observed rather than
@@ -256,7 +326,7 @@ test("degraded path: a forced worker death still computes the SAME report on the
     const p = await ctx.newPage();
     await bootWorkspace(p);
     await fillStable(p, FINGERPRINT_INPUT);
-    await settleReport(p);
+    await settleReport(p, "name: fingerprint");
     const fp = await fingerprint(p);
     await p.close();
     return fp;
@@ -275,7 +345,7 @@ test("degraded path: a forced worker death still computes the SAME report on the
   });
 
   await fillStable(page, FINGERPRINT_INPUT);
-  await settleReport(page);
+  await settleReport(page, "name: fingerprint");
 
   const degraded: Fingerprint = {
     engine: await station(page).getAttribute("data-engine").then((v) => v ?? ""),
@@ -313,5 +383,43 @@ test("degraded path: a forced worker death still computes the SAME report on the
   ).toBeVisible();
 
   // Zero egress on the degraded default path too.
+  expect(external).toEqual([]);
+});
+
+test("catastrophic path: a worker that never answers settles the watchdog verdict, never a hang", async ({
+  page,
+}) => {
+  await swallowFirstDispatch(page);
+  const external = trackExternal(page);
+  await bootWorkspace(page);
+
+  // The friendly verdict, within a BOUNDED timeout: the Phase-A watchdog is
+  // 1.5 s, so anything past 10 s would be a hang, not a slow compute.
+  const verdict = page.getByText(
+    /Analysis exceeded the time budget/i
+  );
+  await expect(verdict).toBeVisible({ timeout: 10_000 });
+  await expect(verdict).toContainText("too complex to process in time");
+
+  // The status strip agrees, and says "failed" rather than spinning forever.
+  await expect(station(page).getByText("Analysis failed")).toBeVisible({
+    timeout: 10_000,
+  });
+
+  // NEVER A HANG: the editor is still enabled, still holds the seeded
+  // workflow, and accepts input.
+  const input = page.locator("#tool-source-input");
+  await expect(input).toBeEnabled();
+  await expect(input).not.toHaveValue("");
+  await fillStable(page, FINGERPRINT_INPUT);
+  await expect(input).toBeEnabled();
+
+  // And the instrument RECOVERS: the respawned worker answers the next
+  // dispatch, so the same report the happy path produces settles here too.
+  await settleReport(page, "name: fingerprint");
+  const echoed = await page.getByTestId("diagnostic-echo").textContent();
+  expect(echoed).toBe(FINGERPRINT_INPUT);
+
+  // Still no external request on the offline default path.
   expect(external).toEqual([]);
 });

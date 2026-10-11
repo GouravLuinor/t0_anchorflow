@@ -57,8 +57,8 @@ export function useAuth(): AuthState {
           const meta = data.session.user.user_metadata ?? {};
           void client.auth.updateUser({
             data: {
-              origin_app: meta.origin_app ?? "regexcraft",
-              last_tool: "regexcraft",
+              origin_app: meta.origin_app ?? "anchorflow",
+              last_tool: "anchorflow",
             },
           });
         }

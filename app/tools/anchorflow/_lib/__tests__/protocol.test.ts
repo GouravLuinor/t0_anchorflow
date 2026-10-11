@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   acceptDispatch,
   INITIAL_DISPATCH_STATE,
-  isFreshResponse,
   isStaleDispatch,
 } from "../protocol";
 import type { WorkerInputPayload, WorkerOutputPayload } from "../types";
@@ -54,15 +53,20 @@ describe("phase-rank stale guard (SPEC §9 AC-15)", () => {
   });
 });
 
-describe("response freshness — the newest result wins", () => {
-  it("accepts the reply for the settled dispatch", () => {
-    const state = acceptDispatch(msg(2, "A"), INITIAL_DISPATCH_STATE);
-    expect(isFreshResponse(res(2, "A"), state)).toBe(true);
+describe("the same guard on the reply path", () => {
+  // `useToolWorker.onWorkerMessage` applies `isStaleDispatch` to every OUTBOUND
+  // envelope as its first statement, so a superseded reply is dropped by the
+  // one predicate rather than by a second freshness function that could drift.
+  it("drops a reply from a superseded dispatch", () => {
+    const state = acceptDispatch(msg(3, "A"), INITIAL_DISPATCH_STATE);
+    expect(isStaleDispatch(res(2, "A"), state)).toBe(true);
+    expect(isStaleDispatch(res(1, "B"), state)).toBe(true);
   });
 
-  it("rejects a reply from a superseded dispatch", () => {
-    const state = acceptDispatch(msg(3, "A"), INITIAL_DISPATCH_STATE);
-    expect(isFreshResponse(res(2, "A"), state)).toBe(false);
-    expect(isFreshResponse(res(1, "B"), state)).toBe(false);
+  it("accepts the B that follows its own A", () => {
+    let state = acceptDispatch(msg(4, "A"), INITIAL_DISPATCH_STATE);
+    expect(isStaleDispatch(res(4, "B"), state)).toBe(false);
+    state = acceptDispatch(res(4, "B"), state);
+    expect(isStaleDispatch(res(4, "B"), state)).toBe(true);
   });
 });

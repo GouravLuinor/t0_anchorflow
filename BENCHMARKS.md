@@ -1,49 +1,72 @@
-# Anchorflow — BENCHMARKS.md
+# Benchmarks — Phase A, measured not estimated
 
-Reproducible measurements for the shipped compute core, regenerated per release
-(not aspirational). Run the numbers yourself with the command below; the table
-records what this repo measured on the machine noted.
+All numbers below were produced by **`npm run bench`** (`scripts/bench-phase-a.ts`,
+run with `tsx`). Nothing in this file was copied from a prior review or a
+sibling tool: the command is shipped so anyone can re-run it on their own
+machine and disagree with this table.
 
-## Reproduce
+Measure the offline core — `analyzeLocal` in
+`app/tools/anchorflow/_lib/analyze.ts` — because that is the whole first paint:
+no worker spin-up, no React render, no network. The e2e suite then proves the
+React/worker path on top of it.
+
+## How to reproduce
 
 ```bash
-# Pure-core Phase A timing (the placeholder measurement path the worker runs).
-npx tsx -e '
-import { performance } from "node:perf_hooks";
-import { analyzeLocal } from "./app/tools/anchorflow/_lib/analyze.ts";
-const wf = Array.from({length: 250}, (_, j) =>
-  ["  build-" + j + ":", "    runs-on: ubuntu-latest", "    steps:",
-   ...Array.from({length: 4}, (_, s) =>
-     ["      - uses: actions/checkout@v4", "        with:",
-      "          ref: ${{ github.event.pull_request.head.sha }}",
-      "      - run: echo \"step ' + s + '\" && npm ci && npm test"])].flat()
-).join("\n");
-const src = "name: bench\non:\n  push:\njobs:\n" + wf + "\n";
-const runs = [];
-for (let i = 0; i < 50; i++) { const t = performance.now(); analyzeLocal(src); runs.push(performance.now() - t); }
-runs.sort((a,b)=>a-b);
-console.log("lines:", src.split("\n").length-1, "bytes:", new TextEncoder().encode(src).length);
-console.log("median", runs[25].toFixed(3)+"ms", "p95", runs[47].toFixed(3)+"ms");
-'
+npm install                 # tsx is a devDependency
+npm run bench               # timings + the nested-flow memory probe
+node --expose-gc --import tsx scripts/bench-phase-a.ts   # same, with explicit GC
 ```
 
-## Measured — Phase A (`analyzeLocal`), n = 50 runs per case
+The script prints, for each case: input size (lines + bytes), the
+median / p95 / max wall-clock over `n = 50` runs (one warm-up run discarded), and
+the margin against `WATCHDOG_MS`.
 
-| Case | Input | Median | p95 | Max | Budget |
+## Machine
+
+| | |
+|---|---|
+| CPU | 13th Gen Intel Core i7-13620H (24 logical cores, 12 physical) |
+| RAM | 6.9 GB total (~2.6 GB available during the run) |
+| OS | linux x64 |
+| Node | v24.13.0 (npm 11.8.0) |
+| Date | 2026-10-11 |
+
+The box was doing ordinary desktop work while timing, and free memory was
+constrained, so the numbers are **conservative rather than best-case**. A quiet
+builder machine lands lower.
+
+## Timings
+
+| Case | Input | median | p95 | max | Watchdog margin |
 |---|---|---|---|---|---|
-| 1,000-line workflow | 960 lines / 33,374 B | **0.227 ms** | 0.531 ms | 1.011 ms | < 0.25 × `WORKER_DEADLINE_MS` (250 ms) |
-| 5,000-line workflow | 4,760 lines / 166,724 B | **1.279 ms** | 1.686 ms | 1.820 ms | < 0.5 × `WORKER_DEADLINE_MS` (500 ms) |
-| Oversize (3× cap) | 19,010 lines / 666,974 B | **7.734 ms** (analyzed at the 256 KiB cap) | 9.087 ms | 13.483 ms | watchdog 1,500 ms |
+| 1,000-line workflow | 971 lines · 30,764 B | **11.4–15.9 ms** | 18.4–27.5 ms | 23.1–48.2 ms | **31–65×** |
+| 5,000-line workflow | 4,815 lines · 153,579 B | **52.9–64.1 ms** | 57.8–101.3 ms | 58.7–118.8 ms | **12.6–25.6×** |
+| Oversize, 3× the input cap | 23,499 lines · 786,914 B | **99.7–113.8 ms** | 111.7–188.0 ms | 117.5–241.8 ms | **6.2–12.8×** |
 
-- **Machine:** 13th Gen Intel Core i7-13620H (12 threads), 6 GB RAM, Linux x86_64,
-  Node v24.13.0. CI-class hardware is slower; the relative invariants above are
-  what the suite asserts.
-- **Margin against the watchdog:** the worst measured case (13.483 ms p95-max on
-  a 666 KB input) is **> 100×** inside `WATCHDOG_MS` (1,500 ms) — the terminate +
-  respawn path exists for a pathological parse, not for this one.
-- **The oversize case proves the cap:** 666,974 B in → 262,144 B analyzed, with
-  the original byte count reported (SPEC §9 AC-13). The cut lands on a code-point
-  boundary; `_lib/__tests__/analyze.test.ts` asserts no lone surrogate survives.
+(Ranges over **ten consecutive runs** of the same command on the machine above;
+quote the single-run p95. Every one of them is far inside the watchdog.)
+
+### What the table proves
+
+- **The oversize case exercises the cap honestly.** 786,914 B in → the analysis
+  runs on the first 262,144 B, and the **original** byte count is still what the
+  `bytes` metric reports (SPEC §9 AC-13) — the cap never makes a workflow look
+  smaller than it is. The cut lands on a code-point boundary:
+  `_lib/__tests__/analyze.test.ts` and `textMetrics.test.ts` assert no lone
+  surrogate survives, and `truncateForDispatch` gates on `countBytes`, so a
+  CJK-heavy paste is capped by bytes rather than by UTF-16 units.
+- **The watchdog margin is 6×–65×, not 1.1×.** The worst p95 across ten runs is
+  ~188 ms — still ~8× inside `WATCHDOG_MS` (1,500 ms) — and the worst *median* is
+  ~114 ms. The terminate + respawn path therefore stays what it is designed for:
+  a pathological parse on a slow mobile tab, never the normal case. The
+  catastrophic journey in `e2e/pipeline.spec.ts` forces that path with a worker
+  that never answers and asserts both the friendly verdict and a still-enabled
+  editor.
+- **Variance is real and is stated.** Run-to-run spread on this loaded box is
+  roughly ±25 % on the small case and ±10 % on the large ones; the *ordering* of
+  the cases is stable in every run, which is what the relative gate assertions
+  depend on.
 
 ## Gate semantics (SPEC §9 AC-11)
 
@@ -54,35 +77,71 @@ console.log("median", runs[25].toFixed(3)+"ms", "p95", runs[47].toFixed(3)+"ms")
   machine runs it.
 - `WATCHDOG_MS` (1,500 ms) is the hard wall: terminate + respawn, never a hang.
 
+## The nested-flow memory probe
+
+`npm run bench` also spends the **same byte budget** two ways — one clean node
+process per shape — and reports the heap each parse costs:
+
+Five runs of the probe (one clean process per shape, each time):
+
+| Shape | Input | Heap delta (5 runs) | RSS |
+|---|---|---|---|
+| flat workflow (steps on separate lines) | 255 KiB | **+18.8 / +19.1 / +19.4 / +19.6 / +21.3 MiB** | 111.3 / 115.6 / 129.8 MiB |
+| deeply nested flow mappings | 248 KiB | **+45.1 / +45.2 / +45.3 / +46.7 / +51.6 MiB** | 168.9 / 171.2 / 175.8 MiB |
+
+**Observation (the one thing this bench found worth writing down):** for an
+almost identical byte count, the deeply nested flow mapping costs roughly **3×
+the heap** of the flat shape. The eemeli parser builds a real node tree, and a
+`{ a: { b: { c: … } } }` chain spends each byte on a new object plus its parent
+link, whereas a flat `- uses:` step spends its bytes mostly on leaves.
+
+That is not a defect — the input cap bounds how much of it can arrive — but it is
+the shape a hostile or generated workflow reaches for first, so it is measured
+and stated rather than assumed away. The watchdog is the backstop.
+
 ## Build & suite timings (same machine)
 
 | Command | Result |
 |---|---|
 | `npm run build` | ~12 s, standalone output at `.next/standalone` |
-| `npm test` (7 suites, 89 tests) | ~0.4 s |
-| `npm run test:e2e` (21 passed, 2 skipped) | ~3 min (includes the standalone build the webServer boots) |
-| First Load JS, `/tools/anchorflow` | 180 kB (103 kB shared) |
+| `npm run typecheck` | ~2 s, 0 errors |
+| `npm run lint` | ~3 s, 0 problems |
+| `npm test` (21 suites, 350 tests) | ~1.3 s |
+| `npm run test:coverage` | ~2.5 s (thresholds green — see `QUALITY_REPORT.md`) |
+| `npm run test:e2e` (42 passed, 2 skipped) | ~40 s (includes the standalone build the webServer boots) |
+| First Load JS, `/tools/anchorflow` | **180 kB** (103 kB shared) |
 
 ## Bundle budget — how the happy path stays tiny
 
 `context.md` §4.1 sets an initial-JS budget of ≤ 200 kB. `/tools/anchorflow`
 ships **180 kB** First Load JS (103 kB of it the shared Next.js/React framework
-chunks) — 20 kB under the budget, and smaller than the RegexCraft reference
-route it mirrors.
+chunks) — **20 kB under the budget**.
 
 Nothing heavy is reachable from the first paint. Measured from
-`.next/app-build-manifest.json`:
+`.next/app-build-manifest.json` and enforced as a source graph walk by
+`app/tools/anchorflow/__tests__/firstLoadBoundary.test.ts`:
 
 | Slice | Where it lives | Reason |
 |---|---|---|
 | eemeli `yaml` + the audits + the resolver core | the **worker chunk**, loaded only by the worker | the compute runs off the main thread |
 | the same core, for the degraded path | an **on-demand chunk** fetched by `degradeToMainThread` | degradation is rare, so it is never paid up front |
-| `framer-motion` (toast animation) | an **on-demand chunk** fetched on the first toast | a copy-failure toast is a rare event |
-| `@supabase/supabase-js` | an **on-demand chunk** fetched on sign-in | OAuth is an offer, never a gate |
 
-What remains in first load is the framework plus the workstation chrome. The
-reduction from 261 kB to 180 kB came from three changes, in order of effect:
-the timeout copy moved out of `_lib/analyze.ts` into pure
-`_lib/constants.ts` (so `useToolWorker` no longer statically imported the
-parser), the toast animation split behind a lazy boundary, and the resolver
-already being a dynamic import.
+## Per-visitor quota reality
+
+The resolver is **unauthenticated and browser-side**: every request goes from the
+visitor's own browser IP to `api.github.com`, which is why the default path makes
+**zero** requests (`autoResolve` is off, asserted in
+`e2e/visual.spec.ts`). When a visitor does opt in, the budget that matters is
+**theirs, not ours**:
+
+- 60 requests per hour per IP — the unauthenticated GitHub rate limit;
+- the tool holds a 2-request reserve floor and never spends a request it might
+  need to label the answer;
+- a workflow with more than `MAX_RESOLVES_PER_RUN` (48) refs resolves the first
+  48 and marks the rest `rate-limited` rather than guessing.
+
+So a real-world consequence is worth stating plainly: **two visitors behind the
+same NAT share one 60/hr bucket**, and a visitor who has already used GitHub's
+API that hour can see the rate-limit banner on a first resolve. The banner is
+friendly copy with a countdown, the offline report stays complete, and nothing is
+ever silently blanked.

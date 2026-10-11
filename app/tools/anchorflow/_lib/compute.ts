@@ -133,7 +133,7 @@ export async function analyzeResolve(
     });
     resolutions = run.resolutions;
     budget = run.budget;
-    phaseBFindings = resolutionFindings(resolutions, budget);
+    phaseBFindings = resolutionFindings(resolutions, budget, wallClock());
 
     // Re-derive the pinned output through the SAME pure modules Phase A used,
     // so an offline-only run and a resolved run can never drift.
@@ -216,10 +216,22 @@ export function resetCountdown(resetAt: number, nowMs: number): string {
  * a `resolution` finding per ref with the outcome that actually happened,
  * plus a "not pinned to a SHA" warning for every moving ref the run left
  * unresolved. Every unresolved ref states why and names the endpoint.
+ *
+ * DETERMINISM: the ONLY clock this module reads is the `nowMs` the caller
+ * injects (the same one `refResolver` stamps receipts with). No ambient
+ * `Date.now()` / `performance.now()` reaches the copy, so two runs over the
+ * same inputs — including a future-dated 429 fixture — produce byte-identical
+ * findings (AC-15).
  */
 export function resolutionFindings(
   resolutions: readonly Resolution[],
-  budget: RateLimitState
+  budget: RateLimitState,
+  /**
+   * The wall clock the countdown copy renders against — INJECTED, never read
+   * from the ambient `Date.now()`, so a report built from the same inputs is
+   * byte-identical across runs (the determinism regression test pins this).
+   */
+  nowMs: number
 ): Finding[] {
   const out: Finding[] = [];
   const counters = new Map<string, number>();
@@ -284,6 +296,21 @@ export function resolutionFindings(
         remediation:
           "Fix or remove the ref, then press Resolve & pin again. The offline report above is still complete.",
       });
+    } else if (resolution.status === "unsafe-ref") {
+      // Refused before any request was sent — the resolver's path-safety gate.
+      out.push({
+        ...base,
+        severity: "warn",
+        title: `Not resolved — ${label}`,
+        detail:
+          `This reference was refused before any request was sent: ${
+            resolution.receipt?.note ?? "the owner, repository or ref is not a safe GitHub reference"
+          }. ` +
+          "Nothing was rewritten and the offline report above is still complete.",
+        evidence: label,
+        remediation:
+          "Use a plain owner/repo (letters, digits, dot, dash or underscore) and an ordinary tag or branch name, then press Resolve & pin again.",
+      });
     } else if (resolution.status === "rate-limited") {
       out.push({
         ...base,
@@ -294,7 +321,7 @@ export function resolutionFindings(
           `${budget.remaining} of ${budget.limit} requests remain this hour. ` +
           `${
             budget.resetAt > 0
-              ? `The window resets in ${resetCountdown(budget.resetAt, Date.now())}. `
+              ? `The window resets in ${resetCountdown(budget.resetAt, nowMs)}. `
               : ""
           }The offline report above is still complete.`,
         evidence: (resolution.endpointsUsed ?? []).join("\n") || label,

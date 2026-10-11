@@ -32,20 +32,34 @@ Do not invent a second visual language. Tokens live in `app/globals.css`
 `tailwind.config.ts`, and `design_tokens.json`. The craft-floor rules in
 `docs/DESIGN.md` §8 are binding.
 
+All values below are verified against `app/globals.css` on 2026-10-11 — this is
+the SHIPPED table, and `app/tools/anchorflow/__tests__/contrast.test.ts` parses
+that file to assert the ratios.
+
 - **Canvas** (warm porcelain light / deep pine dark): `#fafaf7` / `#0c0e0b`
-- **Ink**: `#181a15` / `#eceee4` — >10:1 on canvas in both themes (WCAG AAA)
-- **Surfaces**: `surface-base` `#ffffff` / `#12120f` · `surface-subtle` `#f4f4ee` /
+- **Ink**: `#181a15` / `#eceee4` — measured **16.8:1** light / **16.5:1** dark on
+  canvas (WCAG AAA)
+- **Surfaces** (space-separated RGB triplets in the CSS, hex here):
+  `surface-base` `#ffffff` / `#12140f` (`18 20 15`) · `surface-subtle` `#f4f4ee` /
   `#171a14` · `surface-default` `#ffffff` / `#1b1e18` · `surface-elevated`
   `#fafaf6` / `#242820`
 - **Hairlines**: `surface-border` `#e2e2d8` / `#2e3328`; hover
   `surface-borderHover` `#cbcbbd` / `#42493a`
-- **One accent**: `brand-lime` `#3f6212` / `#bef264` — marks pin / primary /
-  active / the privacy promise, and nothing else
-- **Semantic state only**: `brand-violet` = capture/secondary scope ·
-  `brand-amber` = warn/degraded/truncation/rate-limit · `brand-rose` = error
-  finding / copy-failure toast
+- **One accent**: `brand-lime` `#3f6212` / `#a3e635` (`163 230 53`) — marks pin /
+  primary / active / the privacy promise, and nothing else
+- **Semantic state only**: `brand-violet` = **pending resolution + minor
+  severity** · `brand-amber` = warn / degraded / truncation / the `uses:` scan cap
+  / rate-limit · `brand-rose` = error finding / copy-failure toast / a ref
+  refused by the path-safety gate
 - **Inverted zinc is the only neutral.** `text-zinc-100` → headings · `-300` →
   secondary · `-400` → muted · `-500` → faint mono. No raw named palettes.
+  Measured on the surfaces those roles render on: `-300` 10.3:1/11.2:1 ·
+  `-400` 6.5:1/7.5:1 · `-500` 4.6:1/5.1:1 (AA, by design — they are
+  decoration-grade hints). `text-zinc-600` is retired from the separators
+  (3.0:1 / 3.6:1 — below AA).
+- **Reserved, not currently mounted**: the `badge`, `input`, `textarea` and
+  `dropdown-menu` primitives under `components/ui/` ship no use. They are kept
+  in the ladder's language, not deleted as dead weight.
 - **Craft floor**: no eyebrow kickers (small uppercase mono labels live only
   inside tool panes as functional measurements), no gradient text, no icon-card
   spine, no section numbers, no decorative glass, mono never decorative.

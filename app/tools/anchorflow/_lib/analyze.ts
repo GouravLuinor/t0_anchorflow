@@ -149,6 +149,7 @@ export function analyzeLocal(
       byteCount: truncated.originalBytes,
       truncated: truncated.truncated,
       usesCount: uses.length,
+      usesSeen: parsed.model.usesCap.seen,
       usesScanned: parsed.model.usesCap.scanned,
       usesCapHit: parsed.model.usesCap.capped,
       parseTimeMs,

@@ -29,6 +29,12 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      # The beat-the-bar coverage gates, scoped to the pure `_lib` core
+      # (functions >= 90, lines/statements >= 80, branches >= 70). Fails the
+      # run below the thresholds — see vitest.config.mts.
+      - name: Coverage (pure core, gated)
+        run: npm run test:coverage
+
       - name: Build (production)
         run: npm run build
 

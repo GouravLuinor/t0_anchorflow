@@ -94,6 +94,7 @@ export const EMPTY_METRICS: ToolMetrics = {
   parseTimeMs: 0,
   resolveTimeMs: 0,
   truncated: false,
+  usesSeen: 0,
   usesScanned: 0,
   usesCapHit: false,
   characterCount: 0,

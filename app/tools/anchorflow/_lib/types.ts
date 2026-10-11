@@ -32,7 +32,13 @@ export type ResolveStatus =
   | "resolved"
   | "unknown-ref"
   | "rate-limited"
-  | "network-error";
+  | "network-error"
+  /**
+   * The reference was REFUSED before any request was sent: its owner / repo /
+   * ref failed the resolver's path-safety check (charset, `..` traversal or an
+   * unsafely long token). A value, never a silent drop and never a fetch.
+   */
+  | "unsafe-ref";
 
 export interface UsesRaw {
   id: string;
@@ -250,6 +256,8 @@ export interface ToolMetrics {
   parseTimeMs: number;
   resolveTimeMs: number;
   truncated: boolean;
+  /** `uses:` nodes the collector saw, scanned or not (the cap never hides them). */
+  usesSeen: number;
   usesScanned: number;
   usesCapHit: boolean;
   /** Scaffold-only measurement: UTF-16 characters in the analyzed text. */

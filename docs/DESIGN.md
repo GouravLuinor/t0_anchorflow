@@ -14,7 +14,18 @@ machine rules, one reserved accent worn only by pins and primary actions, and
 mono type reserved strictly for machine data.
 
 The one requirement above all others: **light and dark are both first-class**.
-Ink on canvas clears > 10:1 in both themes (WCAG AAA).
+Ink on canvas clears **16.8:1** (light) and **16.5:1** (dark) — measured, not
+claimed; every secondary and muted zinc step used by the shipped surface clears
+**4.5:1 AA** on the surface it renders on. All of it is asserted by
+`app/tools/anchorflow/__tests__/contrast.test.ts`, which parses the shipped
+`app/globals.css` and computes the WCAG 2.1 ratios of the pairs the UI actually
+renders.
+
+**What is NOT claimed:** the whole ladder is not AAA. The faint mono captions
+(`text-zinc-500`, the status-strip separators) are **4.6:1 light / 5.1:1 dark** —
+AA, deliberately, because they are decoration-grade hints. `text-zinc-600` failed
+AA (3.0:1 / 3.6:1) and was retired from the separators on that evidence; the test
+keeps it retired by asserting it stays below 4.5:1.
 
 ## 2. Token ladder
 
@@ -27,13 +38,13 @@ themes.
 |---|---|---|---|
 | `bg-canvas` | `--canvas` | `#fafaf7` | `#0c0e0b` |
 | `text-ink` | `--ink` | `#181a15` | `#eceee4` |
-| `bg-surface-base` | `--surface-base` | `#ffffff` | `#12120f` |
+| `bg-surface-base` | `--surface-base` | `#ffffff` | `#12140f` (`18 20 15`) |
 | `bg-surface-subtle` | `--surface-subtle` | `#f4f4ee` | `#171a14` |
 | `bg-surface-default` | `--surface-default` | `#ffffff` | `#1b1e18` |
 | `bg-surface-elevated` | `--surface-elevated` | `#fafaf6` | `#242820` |
 | `border-surface-border` | `--surface-border` | `#e2e2d8` | `#2e3328` |
 | `border-surface-borderHover` | `--surface-border-hover` | `#cbcbbd` | `#42493a` |
-| `brand-lime` | `--brand-lime` | `#3f6212` | `#bef264` |
+| `brand-lime` | `--brand-lime` | `#3f6212` | `#a3e635` (`163 230 53`) |
 | `brand-violet` | `--brand-violet` | `#4f46e5` | `#a78bfa` |
 | `brand-amber` | `--brand-amber` | `#92400e` | `#fcd34d` |
 | `brand-rose` | `--brand-rose` | `#be123c` | `#fda4af` |
@@ -51,9 +62,15 @@ intent** (workstation card vs. control well). Do not "optimise" them apart.
 ### Semantic mapping (Anchorflow-specific)
 
 - **lime** = pinned / match / primary / the privacy promise / a successful copy.
-- **violet** = capture / secondary scope (the grant table's secondary column).
-- **amber** = warn / degraded / truncation / the rate-limit banner.
-- **rose** = error finding / copy failure / a rejected analysis.
+- **violet** = **pending resolution** (a remote ref the resolver has not
+  dispatched yet) and **minor** severity in the findings bands. The grant table's
+  secondary column is *not* violet: it is ink/zinc, and nothing else borrows the
+  colour.
+- **amber** = warn / degraded / the input truncation / the `uses:` scan cap / the
+  rate-limit banner.
+- **rose** = error finding / copy failure / a ref refused by the path-safety gate.
+  (Nothing in the shipped surface is a "rejected analysis" — that state is the
+  friendly parse error, which is amber-bordered with zinc copy.)
 
 A state colour appearing where it does not mean that thing is a bug.
 
@@ -63,6 +80,14 @@ A state colour appearing where it does not mean that thing is a bug.
   values and `.dark` overrides the same `--zinc-inv-*` names, so one class name
   flips with the theme. Conventions: `text-zinc-100` headings · `-300` secondary
   · `-400` muted · `-500` faint mono captions. No raw named palettes anywhere.
+- Measured contrast on the surfaces those roles actually render on (the diagnostic
+  pane body for `-300/-400`, the composited workstation status strip for `-500`):
+  | Step | Light | Dark |
+  |---|---|---|
+  | `text-zinc-300` | 10.3:1 | 11.2:1 |
+  | `text-zinc-400` | 6.5:1 | 7.5:1 |
+  | `text-zinc-500` | 4.6:1 | 5.1:1 |
+  | `text-zinc-600` (retired from separators) | 3.0:1 | 3.6:1 |
 - **Inter** for all UI, headings and prose; **JetBrains Mono** for code,
   patterns, metrics, timings, receipts and keycaps (both `next/font/google`,
   `display: "swap"`, latin subset).
@@ -78,14 +103,38 @@ A state colour appearing where it does not mean that thing is a bug.
 
 ## 4. Surfaces, elevation, and the only permitted blur
 
-- `.glass-edge` = one inset white hairline (`0.9` light / `0.05` dark) + one soft
-  shadow (`0 12px 40px rgb(var(--ink) / 0.10)`). It is a machined edge, not
-  frosted glass.
+- `.glass-edge` = one inset white hairline (`rgb(255 255 255 / 0.9)` light /
+  `0.05` dark) + one soft shadow. The shipped shadow differs per theme and
+  carries the ink colour, not a neutral black:
+  - light: `0 12px 40px rgb(var(--ink) / 0.10)`
+  - dark: `0 12px 40px rgb(0 0 0 / 0.45)`
+  It is a machined edge, not frosted glass. `.glass-edge-subtle` is the hairline
+  alone, also theme-independent.
 - Blur is permitted in exactly two functional places: the sticky header
   (`bg-canvas/80 backdrop-blur-md`) and the command-palette scrim
   (`bg-canvas/70 backdrop-blur-sm`). No card joins them.
 - Elevation is declared once — border **or** shadow, not both. No decorative
   glow, no spotlight, no gradient fills.
+- **The one tactile exception, documented:** `components/ui/keycap.tsx` carries
+  `shadow-raycast`, a real token — `--shadow-raycast` is declared on `:root` and
+  `.dark` in `app/globals.css` (the two-theme pattern every other value here
+  uses) and mapped through `tailwind.config.ts`, not an arbitrary value in a
+  class string. A keycap is a *key*: it is the only element in the system the
+  visitor is invited to press, and the 1px inset plus a 2px drop is what makes it
+  read as raised rather than as a label. The inset frays to `0.05` in dark, like
+  `.glass-edge`. It replaced the inline
+  `shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6)]`, which was a literal smuggled
+  into a class string that ignored the dark theme entirely.
+
+### Two documented exceptions
+
+1. **Keycap tactility** (above) — a shadow on one element.
+2. **The Google provider mark is monochrome.** The OAuth button renders the
+   provider's *shape* through four paths filled with `currentColor`, not the
+   provider's brand hexes (`#4285F4` / `#34A853` / `#FBBC05` / `#EA4335`). The
+   shape is the provider's; the colour is ours — Matchlight spends one accent and
+   inverts zinc as its only neutral, and a multi-hue glyph would be the single
+   place the ladder breaks. `SignInButton.tsx` carries the rationale in the file.
 
 ## 5. Motion
 
@@ -163,12 +212,18 @@ SiteHeader (sticky, bg-canvas/80 + backdrop-blur-md)
 | Component | Role |
 |---|---|
 | `components/ui/button.tsx` | the canonical five-state button (base string is the reference) |
-| `components/ui/keycap.tsx` | keyboard hints; `xs` for the status strip, `sm`/`md` in docs |
-| `components/ui/badge.tsx` | severity + classification badges (semantic colour only) |
+| `components/ui/keycap.tsx` | keyboard hints; `xs` for the status strip, `sm`/`md` in docs. Its `shadow-raycast` is the one documented tactile exception to §4's "border **or** shadow" rule — see §4 above |
 | `components/ui/dialog.tsx` | Radix dialog — the palette + sign-in modal |
 | `components/ui/switch.tsx` | Radix switch — the auto-resolve opt-in |
 | `components/ui/tabs.tsx` | Radix tabs — the KnowledgeHub guide |
-| `components/ui/textarea.tsx` / `input.tsx` | controlled inputs with the five states |
 | `components/ui/tooltip.tsx` | Radix tooltip — control hints |
 | `components/ui/skeleton.tsx` | the processing state in the diagnostic pane |
 | `components/ui/toast.tsx` | the copy feedback (lime success, rose failure) |
+| `components/ui/badge.tsx` | **reserved — not currently mounted.** Ships no use; kept as the reference for a semantic badge |
+| `components/ui/input.tsx` | **reserved — not currently mounted** |
+| `components/ui/textarea.tsx` | **reserved — not currently mounted** (the editor is a styled native `<textarea>` in `RawEditorPane`) |
+| `components/ui/dropdown-menu.tsx` | **reserved — not currently mounted** |
+
+A primitive marked *reserved* is not a bug: it is Mounted-and-unused debt that
+must stay in the ladder's language, so any future mount needs no new styling
+decision. Anything mounted without a row here is the bug.

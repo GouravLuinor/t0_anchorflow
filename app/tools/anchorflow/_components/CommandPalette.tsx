@@ -18,6 +18,7 @@ import {
   Compass,
   CornerDownLeft,
   MessageCircleQuestion,
+  Pin,
   RotateCcw,
   Search,
   SunMoon,
@@ -45,6 +46,9 @@ interface CommandItem {
   hint?: string;
   icon: ReactNode;
   keycap?: string;
+  /** Fifth state: a command that cannot run RIGHT NOW is listed but inert. */
+  disabled?: boolean;
+  disabledHint?: string;
   onSelect: () => void;
 }
 
@@ -62,6 +66,12 @@ export function CommandPalette() {
   const setCommandPaletteOpen = useToolStore((s) => s.setCommandPaletteOpen);
   const reset = useToolStore((s) => s.reset);
   const setSource = useToolStore((s) => s.setSource);
+  const requestResolve = useToolStore((s) => s.requestResolve);
+  const resolveStatus = useToolStore((s) => s.resolveStatus);
+  const resolving = resolveStatus === "running";
+  const pendingRefs = useToolStore(
+    (s) => s.report.uses.filter((use) => use.cls === "remoteRef").length
+  );
   const openAuthPrompt = useAuthPromptStore((s) => s.open);
   const { resolvedTheme, setTheme } = useTheme();
 
@@ -143,6 +153,26 @@ export function CommandPalette() {
 
     const actions: CommandItem[] = [
       {
+        id: "action-resolve",
+        title: "Resolve & pin",
+        category: "Actions",
+        hint: "Resolve every pending ref to a commit SHA",
+        icon: <Pin className="h-4 w-4" aria-hidden="true" />,
+        keycap: "⌘⏎",
+        // Disabled unless there is something to spend the hourly quota on —
+        // the same gate the toolbar's button uses, so the two can never
+        // disagree about whether a resolve is possible.
+        disabled: pendingRefs === 0 || resolving,
+        disabledHint:
+          pendingRefs === 0
+            ? "Every ref is already pinned — nothing to resolve"
+            : "A resolve is already running",
+        onSelect: () => {
+          requestResolve();
+          close();
+        },
+      },
+      {
         id: "action-copy",
         title: "Copy Diagnostic Output",
         category: "Actions",
@@ -198,7 +228,17 @@ export function CommandPalette() {
     ];
 
     return [...navigation, ...actions];
-  }, [close, handleCopy, handleToggleTheme, openAuthPrompt, reset, setSource]);
+  }, [
+    close,
+    handleCopy,
+    handleToggleTheme,
+    openAuthPrompt,
+    pendingRefs,
+    requestResolve,
+    resolving,
+    reset,
+    setSource,
+  ]);
 
   const filtered = useMemo(
     () =>
@@ -256,11 +296,21 @@ export function CommandPalette() {
       return;
     }
     if (event.key === "Enter") {
-      // Modifier+Enter belongs to page shortcuts — never run an option.
-      if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+      if (event.metaKey || event.ctrlKey) {
+        // ⌘⏎ is the page-level resolve chord's palette twin: it runs Resolve &
+        // pin without moving the selection. A disabled action does nothing.
+        const resolve = commands.find((command) => command.id === "action-resolve");
+        if (resolve && !resolve.disabled) {
+          event.preventDefault();
+          resolve.onSelect();
+        }
+        return;
+      }
+      // Shift+Enter belongs to page shortcuts — never run an option.
+      if (event.shiftKey) return;
       event.preventDefault();
       const command = filtered[selectedIndex];
-      if (command) {
+      if (command && !command.disabled) {
         command.onSelect();
         close();
       }
@@ -317,31 +367,43 @@ export function CommandPalette() {
                   </div>
                   {group.items.map(({ item, index }) => {
                     const isSelected = index === selectedIndex;
+                    const disabled = item.disabled === true;
                     return (
                       <div
                         key={item.id}
                         id={`${listId}-opt-${index}`}
                         role="option"
                         aria-selected={isSelected}
+                        aria-disabled={disabled || undefined}
                         tabIndex={-1}
                         onClick={() => {
+                          if (disabled) return;
                           item.onSelect();
                           close();
                         }}
                         onMouseEnter={() => setSelectedIndex(index)}
                         className={cn(
-                          "flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2 transition-[background-color,border-color,color,transform] duration-150 ease-out-expo motion-reduce:transition-none",
-                          isSelected
-                            ? "border-surface-borderHover bg-surface-elevated text-zinc-100"
-                            : "border-transparent text-zinc-300 hover:border-surface-border hover:bg-surface-elevated/50",
-                          "active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime/70"
+                          "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 transition-[background-color,border-color,color,transform] duration-150 ease-out-expo motion-reduce:transition-none",
+                          disabled
+                            ? "cursor-not-allowed border-transparent text-zinc-500"
+                            : cn(
+                                "cursor-pointer",
+                                isSelected
+                                  ? "border-surface-borderHover bg-surface-elevated text-zinc-100"
+                                  : "border-transparent text-zinc-300 hover:border-surface-border hover:bg-surface-elevated/50",
+                                "active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime/70"
+                              )
                         )}
                       >
                         <span className="flex min-w-0 items-center gap-2.5">
                           <span
                             className={cn(
                               "shrink-0",
-                              isSelected ? "text-brand-lime" : "text-zinc-400"
+                              disabled
+                                ? "text-zinc-600"
+                                : isSelected
+                                  ? "text-brand-lime"
+                                  : "text-zinc-400"
                             )}
                           >
                             {item.icon}
@@ -350,9 +412,9 @@ export function CommandPalette() {
                             <span className="block truncate text-sm font-medium">
                               {item.title}
                             </span>
-                            {item.hint ? (
+                            {item.hint || item.disabledHint ? (
                               <span className="block truncate text-xs text-zinc-500">
-                                {item.hint}
+                                {disabled ? item.disabledHint : item.hint}
                               </span>
                             ) : null}
                           </span>

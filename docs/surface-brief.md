@@ -1,8 +1,8 @@
 # Anchorflow — Surface Brief (DEV-ONLY direction contract)
 
 > **This file must never leak into source, metadata, or the DOM.** It is the
-> direction contract the shell was built against; it is not user-facing copy and
-> is not indexed, linked from the UI, or inlined anywhere.
+> direction contract the shipped surface was built against; it is not user-facing
+> copy and is not indexed, linked from the UI, or inlined anywhere.
 
 ## THESIS
 
@@ -22,18 +22,22 @@ appears exactly twice.
 ## STORY
 
 First viewport answers one question: "what does this tool do to my file?" —
-paste YAML, watch the diagnostic pane answer. The trip below the fold is the
-argument: the matrix says why not the incumbents, the guide teaches the four
-habits, the FAQ settles the privacy question. Every claim below the fold is
-something the tool can actually do or already proves by test.
+paste YAML, watch the diagnostic pane answer. The answer is real on the first
+paint: the seeded workflow is classified, audited and rewritten (a byte-identical
+no-op) with zero network. The trip below the fold is the argument: the matrix
+says why not the incumbents, the guide teaches the four habits, the FAQ settles
+the privacy question. Every claim below the fold is something the shipped
+surface does and its e2e journey proves.
 
 ## FIRST VIEWPORT
 
-One job, one card. No cost matrices, no receipt lists, no export dialogs on
-first paint — those arrive with the domain pass and live in tabs below. Trust
-pills carry the privacy promise where the eye lands: Zero Upload · In-Browser
-Worker · No Account Required. The seeded workflow is deliberately shaped so the
-first report is non-blank (a moving ref fires with no network).
+One job, one card. The measurement grid, the findings (with the severity legend),
+the grant table and the `uses:` classification all sit in that first viewport;
+the receipts and the pinned diff join them once a resolve has actually happened,
+not before. Trust pills carry the privacy promise where the eye lands: Zero-Upload
+Analysis · In-Browser Worker · No Account Required. The seeded workflow is
+deliberately shaped so the first report is non-blank — a moving ref, an
+over-broad grant and an untrusted interpolation all fire with no network.
 
 ## FORM
 

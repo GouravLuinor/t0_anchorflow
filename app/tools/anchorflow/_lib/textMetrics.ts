@@ -10,6 +10,11 @@
 // splitting a UTF-16 surrogate pair (a non-BMP code point is 4 UTF-8 bytes and
 // 2 UTF-16 units), and report the ORIGINAL byte count so the cap never hides
 // how large the input really was.
+//
+// `truncateForDispatch` lives here too (not in the React hook) so the worker
+// dispatch cap and the analyze cap are ONE implementation, unit-testable
+// without a DOM: the gate is `countBytes`, never `String.length`, because a
+// CJK text is ~3 bytes per UTF-16 unit and would otherwise sail past the cap.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { MAX_INPUT_BYTES } from "./constants";
@@ -79,6 +84,17 @@ export function truncateToCap(
   }
 
   return { text: text.slice(0, end), truncated: true, originalBytes };
+}
+
+/**
+ * The text a dispatch is allowed to carry: the same byte cap the analysis
+ * applies, cut on a code-point boundary. Gating on `String.length` (UTF-16
+ * units) would under-trigger on multibyte text — `"漢"` is 1 unit but 3 bytes
+ * — and slicing by index could split a surrogate pair in half, so the hook
+ * that posts into the worker uses THIS, never its own slice.
+ */
+export function truncateForDispatch(source: string): string {
+  return truncateToCap(source, MAX_INPUT_BYTES).text;
 }
 
 /** Line (1-based) of a source offset — the `# line N` annotation in the UI. */

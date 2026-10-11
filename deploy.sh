@@ -5,6 +5,23 @@ echo "=========================================="
 echo "Deploying Anchorflow on VPS..."
 echo "=========================================="
 
+# 0. Supply-chain PRE-FLIGHT (M8): never `git reset --hard` a workspace that
+#    still carries uncommitted work — that is how a local fix gets destroyed by
+#    a deploy. Refuse and say exactly what to do instead.
+if [ -d ".git" ]; then
+    if [ -n "$(git status --porcelain)" ]; then
+        echo "REFUSING TO DEPLOY: the workspace is dirty."
+        echo
+        echo "Uncommitted changes would be lost by the reset below."
+        echo "Commit or stash them first:"
+        echo "  git status --porcelain        # see what is dirty"
+        echo "  git stash push -u            # or: git add -A && git commit"
+        echo
+        git status --short
+        exit 1
+    fi
+fi
+
 # 1. Supply-chain gate: fetch and compare SHAs, then require explicit
 #    confirmation (DEPLOY_CONFIRM=1 or first arg "confirm") before the
 #    workspace is reset to origin/main. Never blind-pull.

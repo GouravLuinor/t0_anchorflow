@@ -170,6 +170,29 @@ describe("analyzeLocal — the full Phase-A envelope body", () => {
     expect(body.diff?.changed).toBe(0);
   });
 
+  it("reports the `uses:` scan cap honestly — seen, scanned, capped (A6)", () => {
+    // More than MAX_USES_SCAN (2,000) nodes: the collector stops at the cap but
+    // keeps counting, so the report can say how many were NOT analysed instead
+    // of silently dropping them.
+    const steps = Array.from(
+      { length: 2_500 },
+      () => "      - uses: actions/checkout@v4"
+    ).join("\n");
+    const body = analyzeLocal(
+      `jobs:\n  b:\n    steps:\n${steps}\n`
+    );
+    expect(body.ok).toBe(true);
+    expect(body.metrics.usesCapHit).toBe(true);
+    expect(body.metrics.usesScanned).toBe(2_000);
+    expect(body.metrics.usesSeen).toBe(2_500);
+    // The analysed set is the capped one — `usesCount` never claims more than
+    // was actually scanned.
+    expect(body.metrics.usesCount).toBe(2_000);
+    expect(body.uses).toHaveLength(2_000);
+    // The alert strip's arithmetic: what the UI tells the user was skipped.
+    expect(body.metrics.usesSeen - body.metrics.usesScanned).toBe(500);
+  });
+
   it("reports the four offline audits in the canonical deterministic order (AC-10)", () => {
     // One job per audit, deliberately interleaved so source offsets alone do not
     // explain the order: the sort must fall back to category, then id.
@@ -296,6 +319,7 @@ describe("shared constants", () => {
       parseTimeMs: 0,
       resolveTimeMs: 0,
       truncated: false,
+      usesSeen: 0,
       usesScanned: 0,
       usesCapHit: false,
       characterCount: 0,

@@ -1,8 +1,10 @@
 "use client";
 
 import { Cpu, Lock, ShieldCheck, TriangleAlert } from "lucide-react";
+import type { ReactNode } from "react";
 import { Keycap } from "@/components/ui/keycap";
 import { Toaster } from "@/components/ui/toast";
+import { TRUST_PILLS } from "./_lib/presets";
 import { useToolWorker } from "./_hooks/useToolWorker";
 import { useKeyboardShortcuts } from "./_hooks/useKeyboardShortcuts";
 import { TopToolbar } from "./_components/TopToolbar";
@@ -18,25 +20,14 @@ import { FaqSection } from "./_components/FaqSection";
 import { SignInModal } from "./_components/auth/SignInModal";
 import { useToolStore } from "./_store/useToolStore";
 
-const TRUST_PILLS = [
-  {
-    id: "egress",
-    label: "Zero Upload",
-    icon: (
-      <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-brand-lime" aria-hidden="true" />
-    ),
-  },
-  {
-    id: "worker",
-    label: "In-Browser Worker",
-    icon: <Cpu className="h-3.5 w-3.5 shrink-0 text-zinc-400" aria-hidden="true" />,
-  },
-  {
-    id: "account",
-    label: "No Account Required",
-    icon: <Lock className="h-3.5 w-3.5 shrink-0 text-zinc-400" aria-hidden="true" />,
-  },
-];
+/** One icon per trust pill, keyed by the id `presets.ts` owns. */
+const TRUST_PILL_ICONS: Record<string, ReactNode> = {
+  egress: (
+    <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-brand-lime" aria-hidden="true" />
+  ),
+  worker: <Cpu className="h-3.5 w-3.5 shrink-0 text-zinc-400" aria-hidden="true" />,
+  account: <Lock className="h-3.5 w-3.5 shrink-0 text-zinc-400" aria-hidden="true" />,
+};
 
 export default function ToolPage() {
   useToolWorker();
@@ -95,7 +86,7 @@ export default function ToolPage() {
                   key={pill.id}
                   className="flex items-center gap-1.5 rounded-md border border-surface-border bg-surface-subtle/50 px-2.5 py-1 font-mono text-[11px]"
                 >
-                  {pill.icon}
+                  {TRUST_PILL_ICONS[pill.id]}
                   <span className="font-medium text-zinc-300">{pill.label}</span>
                 </li>
               ))}
@@ -195,10 +186,14 @@ export default function ToolPage() {
                     <Keycap size="xs">⌘⇧C</Keycap> Copy
                   </span>
                 </div>
-                <span className="hidden text-zinc-600 md:inline">/</span>
+                <span aria-hidden="true" className="hidden text-zinc-500 md:inline">
+                  /
+                </span>
                 <div className="flex items-center gap-1.5">
                   <span>100% In-Browser</span>
-                  <span className="text-zinc-600">/</span>
+                  <span aria-hidden="true" className="text-zinc-500">
+                    /
+                  </span>
                   <span className="font-medium text-brand-lime">
                     0 byte upload
                   </span>

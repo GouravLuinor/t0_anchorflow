@@ -77,8 +77,9 @@ const config: Config = {
         zinc: zincInverted,
       },
       boxShadow: {
-        raycast:
-          "0 1px 2px rgb(var(--ink) / 0.08), inset 0 1px 0 0 rgb(255 255 255 / 0.6)",
+        // Keycap tactility — the one documented shadow exception (DESIGN.md §4).
+        // Theme-aware: a dark keycap needs a dark drop and a dark inset.
+        raycast: "var(--shadow-raycast)",
         elevated: "0 12px 40px rgb(var(--ink) / 0.10)",
       },
       fontFamily: {

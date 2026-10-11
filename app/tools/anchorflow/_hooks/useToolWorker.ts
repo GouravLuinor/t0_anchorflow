@@ -6,7 +6,6 @@ import {
   DEBOUNCE_INSTANT_MS,
   DEBOUNCE_LARGE_MS,
   DEBOUNCE_MEDIUM_MS,
-  MAX_INPUT_BYTES,
   RATE_LIMIT_RESERVE,
   RESOLVE_BUDGET_MS,
   RESOLVE_DEBOUNCE_MS,
@@ -19,6 +18,7 @@ import {
   isStaleDispatch,
   type DispatchState,
 } from "../_lib/protocol";
+import { truncateForDispatch } from "../_lib/textMetrics";
 import { useToolStore } from "../_store/useToolStore";
 import type {
   FetchLike,
@@ -50,13 +50,6 @@ import type {
 
 /** Neutral in-flight crash copy — never let the watchdog verdict fabricate one. */
 const WORKER_CRASH_ERROR = "Worker crashed — switched to main-thread mode";
-
-/** Cap the input before it leaves the main thread (structured-clone cost). */
-function truncateForDispatch(source: string): string {
-  return source.length > MAX_INPUT_BYTES
-    ? source.slice(0, MAX_INPUT_BYTES)
-    : source;
-}
 
 function debounceFor(length: number): number {
   if (length > 20_000) return DEBOUNCE_LARGE_MS;

@@ -1,0 +1,60 @@
+name: Oracle (live differential)
+
+# The LIVE GOLDEN ORACLE (BAR §9(a) / §10 item 18(a)).
+#
+# The default CI path stays HERMETIC: `npm test` replays the recorded captures
+# in `_lib/__tests__/fixtures/` through an injected `fetchImpl`. This job is the
+# other half — it re-resolves the same recorded set T against the REAL
+# `api.github.com`, compares every returned SHA against the pinned expectations
+# in `fixtures/index.ts`, and cross-checks each one with `git ls-remote …` (the
+# peeled refspec, so an annotated tag proves it dereferenced to the commit it
+# names). A GitHub API change or an upstream tag drift fails here.
+#
+# SKIP, never FAIL: the runner's own IP is the only Anchorflow-side IP that ever
+# talks to the API, and its quota is not the visitor's. A 403/429 (or any
+# network failure) is reported as a skip, so a shared runner can never turn a
+# green suite red.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Weekly, Sundays at 06:17 UTC — off the hour, away from the CI rush.
+    - cron: "17 6 * * 0"
+
+# Least privilege: the job only needs to read the repository it checks out.
+permissions:
+  contents: read
+
+jobs:
+  live-oracle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Live differential resolve against the recorded SHAs
+        id: oracle
+        env:
+          GH_LIVE: "1"
+        # continue-on-error: a runner the API blocks (403/429) or an offline
+        # host is a SKIP, not a failure — the summary below states which.
+        continue-on-error: true
+        run: npx vitest run app/tools/anchorflow/_lib/__tests__/refResolver.live.test.ts
+
+      - name: Oracle verdict
+        if: always()
+        run: |
+          if [ "${{ steps.oracle.outcome }}" = "success" ]; then
+            echo "ORACLE PASSED — every recorded SHA still matches the live API"
+          elif [ "${{ steps.oracle.outcome }}" = "skipped" ]; then
+            echo "ORACLE SKIPPED — api.github.com blocked this runner (403/429/offline)"
+          else
+            echo "ORACLE FAILED — the live API no longer agrees with the recordings"
+          fi

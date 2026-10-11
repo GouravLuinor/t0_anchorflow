@@ -351,6 +351,91 @@ test.describe("Anchorflow shell journeys", () => {
     await expect(dialog).toBeHidden({ timeout: COMPUTE_TIMEOUT });
   });
 
+  test("the palette's Resolve & pin is disabled with nothing pending (M14)", async ({
+    page,
+  }) => {
+    // An already-pinned workflow leaves no `remoteRef` node, so the command
+    // must be listed but inert — never a quota-spending no-op.
+    await fillStable(
+      sourceInput(page),
+      "name: pinned\njobs:\n  b:\n    steps:\n      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683\n"
+    );
+    await expect(page.getByTestId("resolve-pin-button")).toBeDisabled({
+      timeout: COMPUTE_TIMEOUT,
+    });
+
+    const dialog = page.getByRole("dialog", { name: /command palette/i });
+    await page.keyboard.press(`${MOD}+K`);
+    await expect(dialog).toBeVisible({ timeout: COMPUTE_TIMEOUT });
+    const search = dialog.locator("#command-palette-search-input");
+    await search.fill("resolve");
+
+    const option = dialog.getByRole("option").first();
+    await expect(option).toBeVisible({ timeout: COMPUTE_TIMEOUT });
+    await expect(option).toHaveAttribute("aria-disabled", "true");
+    await expect(option).toContainText(/already pinned/i);
+
+    // Clicking an inert command changes nothing, spends nothing, and does not
+    // even close the palette — the command is inert, not a no-op dismissal.
+    // (`dispatchEvent` rather than `click()`: Playwright refuses to click an
+    // `aria-disabled` option, which is the browser-side behaviour we want.)
+    await option.dispatchEvent("click");
+    await expect(dialog).toBeVisible();
+    await expect(page.getByTestId("receipt-list")).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden({ timeout: COMPUTE_TIMEOUT });
+  });
+
+  test("the palette's Resolve & pin drives the resolve when refs are pending", async ({
+    page,
+  }) => {
+    const dialog = page.getByRole("dialog", { name: /command palette/i });
+    await page.keyboard.press(`${MOD}+K`);
+    await expect(dialog).toBeVisible({ timeout: COMPUTE_TIMEOUT });
+    const search = dialog.locator("#command-palette-search-input");
+    await search.fill("resolve");
+
+    const option = dialog.getByRole("option").first();
+    await expect(option).toBeVisible({ timeout: COMPUTE_TIMEOUT });
+    // The seeded workflow carries pending remote refs, so it is live …
+    await expect(option).toContainText(/Resolve & pin/);
+    await expect(option).not.toHaveAttribute("aria-disabled", "true");
+    // … and it carries the ⌘⏎ hint the shortcut wires inside the palette.
+    await expect(option).toContainText("⌘⏎");
+
+    await option.click();
+    await expect(dialog).toBeHidden({ timeout: COMPUTE_TIMEOUT });
+
+    // The resolve actually ran: no approval given to the network here, so the
+    // refs come back unresolved with receipts naming the endpoints that were
+    // tried — but the ACTION fired, which is what this journey proves.
+    await expect(page.getByTestId("receipt-item").first()).toBeVisible({
+      timeout: COMPUTE_TIMEOUT,
+    });
+  });
+
+  test("the ⌘⏎ chord inside the palette runs Resolve & pin", async ({ page }) => {
+    const dialog = page.getByRole("dialog", { name: /command palette/i });
+    await page.keyboard.press(`${MOD}+K`);
+    await expect(dialog).toBeVisible({ timeout: COMPUTE_TIMEOUT });
+    const search = dialog.locator("#command-palette-search-input");
+    await search.fill("resolve");
+
+    const option = dialog.getByRole("option").first();
+    await expect(option).toContainText(/Resolve & pin/);
+    await expect(option).not.toHaveAttribute("aria-disabled", "true");
+
+    // The chord is the page-level focus shortcut's PALETTE twin: it runs the
+    // highlighted action without moving the selection, and it is inert when the
+    // action is inert.
+    await page.keyboard.press(`${MOD}+Enter`);
+    await expect(dialog).toBeHidden({ timeout: COMPUTE_TIMEOUT });
+
+    await expect(page.getByTestId("receipt-item").first()).toBeVisible({
+      timeout: COMPUTE_TIMEOUT,
+    });
+  });
+
   test("⌘⇧C copies the diagnostic output with a lime success toast", async ({
     page,
     context,

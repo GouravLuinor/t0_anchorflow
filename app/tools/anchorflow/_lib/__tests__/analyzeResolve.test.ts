@@ -211,6 +211,60 @@ describe("analyzeResolve — the 429 Phase-B (SPEC AC-13, the C1 invariant)", ()
     expect(calls.length).toBeGreaterThan(0);
   });
 
+  it("is byte-identical across two runs on a FUTURE-dated 429 fixture", async () => {
+    // The determinism regression (AC-15). The rate-limit detail renders a
+    // countdown against the window's reset, so an ambient `Date.now()` inside
+    // the copy would make two runs over the SAME inputs differ. The fixture is
+    // FUTURE-dated on purpose: `resetAt` must be ahead of the injected clock
+    // for the countdown to be non-zero and the bug to show.
+    const futureReset = String(Math.floor(NOW / 1000) + 1_111);
+    const rateLimited: RecordedFixture = {
+      request: { method: "GET", path: "/repos/actions/checkout/git/ref/tags/v4" },
+      response: {
+        status: 429,
+        headers: {
+          "content-type": "application/json",
+          "x-ratelimit-limit": "60",
+          "x-ratelimit-remaining": "0",
+          "x-ratelimit-reset": futureReset,
+          "x-ratelimit-resource": "core",
+        },
+        body: { message: "You have exceeded a secondary rate limit." },
+      },
+    };
+
+    const run = async () => {
+      const { fetchImpl } = fakeNetwork(rateLimited);
+      // Phase A takes the SAME injected clock, so `parseTimeMs` is a pinned
+      // 0 rather than a measurement of this machine. Everything else in the
+      // envelope is a pure function of the inputs.
+      const phaseA = analyzeLocal(SAMPLE_WORKFLOW, { now: () => NOW });
+      return analyzeResolve(phaseA, {
+        fetchImpl,
+        resolve: true,
+        budget: { ...BUDGET },
+        now: () => NOW,
+        negativeCache: new Map<string, number>(),
+      });
+    };
+
+    const first = await run();
+    const second = await run();
+
+    // The whole envelope, serialised: findings, resolutions, diff, rewrite,
+    // metrics and the receipts. The only clock-dependent field left is the
+    // display-only `resolvedAt` stamp, which is by contract exempt
+    // (`types.ts`) and is injected from the same clock here — so it is
+    // identical too, and the compare is over the ENTIRE payload.
+    expect(JSON.stringify(second)).toBe(JSON.stringify(first));
+    expect(first.rateLimit.resetAt).toBe(Number(futureReset) * 1000);
+    // The countdown really was rendered (a zero window would prove nothing).
+    const counted = first.findings.filter((f) =>
+      /resets in \d+m \d+s/.test(f.detail)
+    );
+    expect(counted.length).toBeGreaterThan(0);
+  });
+
   it("keeps the offline report across a 403 with x-ratelimit-remaining: 0", async () => {
     const hourly: RecordedFixture = {
       request: { method: "GET", path: "/repos/actions/checkout/git/ref/tags/v4" },

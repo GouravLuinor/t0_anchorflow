@@ -5,9 +5,14 @@
 //   · a `B` for the current id is accepted AFTER its `A`;
 //   · an `A` after a `B`, or a second `B`, for the same id is dropped;
 //   · anything with an older id is dropped outright (the newest request wins).
+//
+// ONE guard, both directions: `isStaleDispatch` is applied to every INBOUND
+// dispatch AND to every OUTBOUND reply in `useToolWorker.onWorkerMessage`, so
+// a superseded envelope is dropped on the reply path by the same function — no
+// second, half-used freshness predicate to drift from the first.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import type { WorkerInputPayload, WorkerOutputPayload } from "./types";
+import type { WorkerInputPayload } from "./types";
 
 export const PHASE_RANK = { A: 1, B: 2 } as const;
 
@@ -42,15 +47,4 @@ export function acceptDispatch(
     requestId: message.id,
     lastPhaseRank: PHASE_RANK[message.phase],
   };
-}
-
-/**
- * True when an outbound envelope belongs to a settled dispatch and may be
- * applied to the store (the newest-result-wins guard on the reply path).
- */
-export function isFreshResponse(
-  response: Pick<WorkerOutputPayload, "id" | "phase">,
-  state: DispatchState
-): boolean {
-  return response.id === state.requestId && PHASE_RANK[response.phase] >= state.lastPhaseRank;
 }

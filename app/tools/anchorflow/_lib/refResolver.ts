@@ -12,6 +12,13 @@
 // own browser IP, so the optimistic budget ledger plus the reserve floor keeps
 // a workflow full of refs from spending the whole hour.
 //
+// PATH SAFETY (hardened): `owner` and `repo` are validated against
+// `^[A-Za-z0-9._-]+$` and may not contain `..`; the ref must be a bounded,
+// traversal-free token. A node that fails is REFUSED BEFORE ANY REQUEST
+// (`unsafe-ref`, with the reason in the receipt) — never fetched, never
+// silently dropped. The host is a module constant, so no caller can redirect a
+// lookup to another origin.
+//
 // The chain for one `uses:` (ARCH §4 F3 · verified endpoint shapes):
 //   GET /repos/{o}/{r}/git/ref/tags/{ref}  → {object:{sha,type}}
 //     type === "commit" → lightweight: that sha IS the commit
@@ -202,6 +209,68 @@ export function isResolvable(uses: ClassifiedUses): boolean {
     Boolean(uses.repo) &&
     Boolean(uses.ref)
   );
+}
+
+// ── Path safety — the pre-flight gate on every URL component ─────────────────
+
+/** Owner / repo: GitHub's own name character set, bounded, no traversal. */
+export const OWNER_REPO_RE = /^[A-Za-z0-9._-]+$/;
+
+/** GitHub's own limits: 39 for an owner, 100 for a repository name. */
+export const MAX_OWNER_LENGTH = 39;
+export const MAX_REPO_LENGTH = 100;
+
+/** A ref token is bounded (git caps a refname at 255 bytes) and traversal-free. */
+export const MAX_REF_LENGTH = 128;
+
+/**
+ * Characters git refuses in a refname (`~ ^ : ? * [ \` and control/space
+ * characters), the brace and quote characters, and `#` / `@` — which would
+ * change what a URL MEANS (fragment / userinfo) rather than merely look odd.
+ * `/` is NOT in the set: a branch such as `release/v1` is a legitimate ref, and
+ * each path segment is percent-encoded when the URL is built.
+ */
+const UNSAFE_REF_RE = /[\s~^:?*[\]{}"'`#@\u0000-\u001f\u007f]/;
+
+/** True when one owner/repo segment may be used in a URL path. */
+export function isSafeOwnerRepoSegment(value: string): boolean {
+  if (!value) return false;
+  if (value.includes("..")) return false;
+  if (!OWNER_REPO_RE.test(value)) return false;
+  return (
+    value.length <= MAX_REPO_LENGTH
+  );
+}
+
+/** True when the owner segment additionally respects GitHub's owner limit. */
+export function isSafeOwner(value: string): boolean {
+  return isSafeOwnerRepoSegment(value) && value.length <= MAX_OWNER_LENGTH;
+}
+
+/** True when a ref token may be used in a URL path. */
+export function isSafeRef(value: string): boolean {
+  if (!value || value.length > MAX_REF_LENGTH) return false;
+  if (value.includes("..")) return false;
+  return !UNSAFE_REF_RE.test(value);
+}
+
+/**
+ * Why this cache key is unsafe to fetch, or null when it is safe. The host is
+ * never part of the key — it is the module constant `API_ORIGIN` — so the only
+ * things that can go wrong are the three URL components.
+ */
+export function unsafeRefReason(key: string): string | null {
+  const [owner, repo, ref] = splitKey(key);
+  if (!isSafeOwner(owner)) {
+    return `the owner "${owner}" is not a safe GitHub owner name`;
+  }
+  if (!isSafeOwnerRepoSegment(repo)) {
+    return `the repository "${repo}" is not a safe GitHub repository name`;
+  }
+  if (!isSafeRef(ref)) {
+    return `the ref "${ref}" is not a safe tag or branch name`;
+  }
+  return null;
 }
 
 function splitKey(key: string): [string, string, string] {
@@ -467,6 +536,13 @@ async function resolveUnique(ctx: Ctx, key: string): Promise<RefOutcome> {
   const [owner, repo, ref] = splitKey(key);
   const endpoints: string[] = [];
   const hopShas: (string | null)[] = [];
+
+  // THE PATH-SAFETY GATE, ahead of every cache and every dispatch: an unsafe
+  // owner/repo/ref is refused with a reason and NEVER fetched.
+  const unsafe = unsafeRefReason(key);
+  if (unsafe) {
+    return { ...stopped("unsafe-ref", unsafe), cached: false };
+  }
 
   // A cached success costs ZERO quota; the LRU is the very first gate.
   const cachedSha = ctx.cache.get(key);
@@ -803,6 +879,18 @@ export function buildReceipt(
   resolvedAt: string
 ): ResolveReceipt {
   const issued = outcome.endpoints;
+  // A refused reference names NO endpoint: quoting one would show a path that
+  // was never requested. The reason is in `note`, the chain is empty.
+  if (issued.length === 0 && outcome.status === "unsafe-ref") {
+    return {
+      endpoint: "no API request was sent — the reference failed the path-safety check",
+      returnedSha: "",
+      lsRemote: lsRemoteRefspec(uses),
+      resolvedAt,
+      note: outcome.note,
+      chain: [],
+    };
+  }
   const paths =
     issued.length > 0
       ? issued
