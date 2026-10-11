@@ -133,6 +133,11 @@ them.
    than the RegexCraft route it mirrors, but over the stated budget. Candidate
    reductions for the polish pass: lazy-load the toaster's `framer-motion`
    dependency, tree-shake lucide icon imports per component.
+   → **CLOSED in v1.0.0** (180 kB): the toaster's `framer-motion` was moved
+   behind a lazy boundary, and `_lib/analyze.ts`'s `ANALYZE_TIMEOUT_ERROR` moved
+   into pure `_lib/constants.ts` so `useToolWorker` no longer statically imports
+   the parser. Re-measured in `BENCHMARKS.md`. The 1.8.0 figures above are left
+   as they were recorded on that commit.
 4. **No `yaml` dependency yet.** The comment-preserving parse (eemeli `yaml`
    `Document` + `keepSourceTokens`) arrives with the domain pass, along with
    `refResolver.ts`, the audits, `yamlRewrite.ts`, `diff.ts` and `presets.ts`

@@ -61,11 +61,28 @@ console.log("median", runs[25].toFixed(3)+"ms", "p95", runs[47].toFixed(3)+"ms")
 | `npm run build` | ~12 s, standalone output at `.next/standalone` |
 | `npm test` (7 suites, 89 tests) | ~0.4 s |
 | `npm run test:e2e` (21 passed, 2 skipped) | ~3 min (includes the standalone build the webServer boots) |
-| First Load JS, `/tools/anchorflow` | 213 kB (103 kB shared) |
+| First Load JS, `/tools/anchorflow` | 180 kB (103 kB shared) |
 
-## Bundle budget caveat
+## Bundle budget — how the happy path stays tiny
 
 `context.md` §4.1 sets an initial-JS budget of ≤ 200 kB. `/tools/anchorflow`
-ships **213 kB** First Load JS — 13 kB over, and smaller than the RegexCraft
-reference route it mirrors. This is an admitted, measured gap; see
-`QUALITY_REPORT.md`.
+ships **180 kB** First Load JS (103 kB of it the shared Next.js/React framework
+chunks) — 20 kB under the budget, and smaller than the RegexCraft reference
+route it mirrors.
+
+Nothing heavy is reachable from the first paint. Measured from
+`.next/app-build-manifest.json`:
+
+| Slice | Where it lives | Reason |
+|---|---|---|
+| eemeli `yaml` + the audits + the resolver core | the **worker chunk**, loaded only by the worker | the compute runs off the main thread |
+| the same core, for the degraded path | an **on-demand chunk** fetched by `degradeToMainThread` | degradation is rare, so it is never paid up front |
+| `framer-motion` (toast animation) | an **on-demand chunk** fetched on the first toast | a copy-failure toast is a rare event |
+| `@supabase/supabase-js` | an **on-demand chunk** fetched on sign-in | OAuth is an offer, never a gate |
+
+What remains in first load is the framework plus the workstation chrome. The
+reduction from 261 kB to 180 kB came from three changes, in order of effect:
+the timeout copy moved out of `_lib/analyze.ts` into pure
+`_lib/constants.ts` (so `useToolWorker` no longer statically imported the
+parser), the toast animation split behind a lazy boundary, and the resolver
+already being a dynamic import.

@@ -43,13 +43,12 @@ export interface AnalyzeOptions {
   now?: () => number;
 }
 
-// Lives in `constants.ts` so the store can seed it without pulling the parser
-// (and the eemeli `yaml` dependency) into the first-load chunk.
-export { EMPTY_METRICS } from "./constants";
-
-/** Friendly copy shared by the worker deadline self-report and the watchdog. */
-export const ANALYZE_TIMEOUT_ERROR =
-  "Analysis exceeded the time budget — this workflow is too complex to process in time.";
+// `EMPTY_METRICS` and `ANALYZE_TIMEOUT_ERROR` live in `constants.ts` (types +
+// plain values only) so the store and the main-thread watchdog hook can read
+// them WITHOUT pulling the parser — and the eemeli `yaml` dependency — into
+// the first-load chunk. They stay re-exported here so the pure core keeps one
+// measurement surface for its consumers.
+export { EMPTY_METRICS, ANALYZE_TIMEOUT_ERROR } from "./constants";
 
 /** Malformed-YAML copy, with the parser's own line:column and reason. */
 export function parseErrorCopy(error: {

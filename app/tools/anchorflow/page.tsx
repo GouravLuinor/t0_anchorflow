@@ -43,6 +43,15 @@ export default function ToolPage() {
   useKeyboardShortcuts();
 
   const isWorkerAvailable = useToolStore((s) => s.isWorkerAvailable);
+  // The active compute engine, exposed for the e2e journeys that must be able
+  // to tell the worker pipeline from the main-thread fallback. `pending` is the
+  // pre-spawn state; `worker` once the chunk is live; `main` when degraded.
+  const engine =
+    isWorkerAvailable === null
+      ? "pending"
+      : isWorkerAvailable
+        ? "worker"
+        : "main";
   const isProcessing = useToolStore((s) => s.isProcessing);
   const errorMessage = useToolStore((s) => s.errorMessage);
   const metrics = useToolStore((s) => s.metrics);
@@ -96,6 +105,7 @@ export default function ToolPage() {
           {/* The one workstation card */}
           <div
             id="workstation"
+            data-engine={engine}
             className="flex flex-col overflow-hidden rounded-2xl border border-surface-border bg-surface-base glass-edge scroll-mt-20"
           >
             <TopToolbar />

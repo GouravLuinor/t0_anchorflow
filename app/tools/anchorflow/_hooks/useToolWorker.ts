@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
-import { ANALYZE_TIMEOUT_ERROR } from "../_lib/analyze";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ANALYZE_TIMEOUT_ERROR,
   DEBOUNCE_INSTANT_MS,
   DEBOUNCE_LARGE_MS,
   DEBOUNCE_MEDIUM_MS,
@@ -92,6 +92,14 @@ export function useToolWorker() {
   );
   /** Worker-scope controller: never two resolves in flight (ARCH §4 point 2). */
   const resolveControllerRef = useRef<AbortController | null>(null);
+  /**
+   * Bumped by `degradeToMainThread`. The Phase-A effect depends on it, so a
+   * worker that dies before it ever replies re-dispatches the CURRENT source on
+   * the main thread instead of leaving the instrument un-computed — the
+   * fallback has to actually run for the "same core, same answer" promise to
+   * be true rather than a claim in a comment.
+   */
+  const [mainThreadRetry, setMainThreadRetry] = useState(0);
 
   // Mirrors store inputs so timers/watchdog read fresh values without
   // subscribing to volatile state (keeps effect deps stable).
@@ -149,6 +157,10 @@ export function useToolWorker() {
       setResolveStatus("idle");
       if (inFlightError) setErrorMessage(inFlightError);
       announceStatus(notice);
+      // Re-arm Phase A on the main thread for whatever is currently in the
+      // editor (the seed included), so a stillborn worker never means a blank
+      // instrument. The id stays monotonic across the re-dispatch.
+      setMainThreadRetry((n) => n + 1);
     },
     [
       clearDebounce,
@@ -356,6 +368,7 @@ export function useToolWorker() {
     };
   }, [
     source,
+    mainThreadRetry,
     handleResult,
     spawnWorker,
     setIsProcessing,

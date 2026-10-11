@@ -69,6 +69,10 @@ export const ARTIFACT_CACHE_CAPACITY = 32;
 /** Trailing window so typing bursts collapse into one screen-reader update. */
 export const SUCCESS_ANNOUNCE_DEBOUNCE_MS = 800;
 
+/** Friendly copy shared by the worker deadline self-report and the watchdog. */
+export const ANALYZE_TIMEOUT_ERROR =
+  "Analysis exceeded the time budget — this workflow is too complex to process in time.";
+
 /** Seed for the advisory rate-limit budget before the first response headers. */
 export const DEFAULT_RATE_LIMIT: { limit: number; remaining: number; resetAt: number } = {
   limit: 60,

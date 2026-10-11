@@ -1,6 +1,6 @@
 {
   "name": "anchorflow",
-  "version": "1.8.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Anchorflow — pin, audit and diff GitHub Actions workflows entirely in your browser",
   "scripts": {

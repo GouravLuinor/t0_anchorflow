@@ -14,15 +14,15 @@ Anchorflow turns the two chores every Actions team eventually faces — **pin ev
 action to an immutable commit** and **stop over-permissioning
 `GITHUB_TOKEN`** — into a paste-and-copy operation.
 
-**Status of this build (v1.8.0, the application shell):** the shell, the worker
-pipeline, the dual-theme design system, the state split and the packaging are
-complete and green. The analysis core currently ships the **placeholder
-measurement**: paste a workflow and the worker returns the analyzed text plus
-character / word / byte / line counts, mirrored live into the diagnostic pane
-with an instant-copy affordance. The domain logic (YAML parse, `uses:`
-classification, ref → commit resolution, permission audit, injection detection,
-the pinned rewrite and the red/green diff) lands in the next pass behind the
-seams this build already exposes — see [Known gaps](#known-gaps-for-the-domain-agent).
+**Status of this build (v1.0.0, first production release):** the shell, the worker
+pipeline, the dual-theme design system, the state split, the packaging and the
+full domain core are complete and green. Paste a workflow and the worker returns
+the offline report — the structural `uses:` classification, the four audits
+(permissions, template injection, dangerous triggers, persist-credentials), the
+effective `GITHUB_TOKEN` grant table, the byte-preserving pinned rewrite and its
+red/green diff — with an optional read-only GitHub resolver for SHA pinning
+that is OFF by default, so the default path makes zero external requests.
+First Load JS is **180 kB** against the 200 kB budget.
 
 ---
 
@@ -251,17 +251,17 @@ max-width.
 
 ## Caveats
 
-- **The analysis core is a placeholder.** Parse, classification, resolution,
-  audits, rewrite and diff are not implemented in this build; the diagnostic
-  pane shows the measurement the core actually returns. Auto-resolve is
-  deliberately disabled rather than shipping a silent no-op.
-- **First Load JS is 213 kB** against the 200 kB budget in `context.md` §4.1 —
-  an admitted, measured gap (the RegexCraft route it mirrors is larger). See
-  `BENCHMARKS.md`.
-- **The `yaml` dependency is not yet installed.** The comment-preserving parse
-  (eemeli `yaml`, `Document` API with `keepSourceTokens`) arrives with the
-  domain pass; the caps, types and `_lib` boundaries it needs are already in
-  place.
+- **Resolution is opt-in and rate-limited.** `autoResolve` ships OFF; the
+  resolver makes unauthenticated, read-only GETs to `api.github.com` from the
+  visitor's own browser, so it inherits their 60/hr limit. The offline report
+  is complete without it.
+- **The resolver trusts the tag it lands on.** Both hops of an annotated tag
+  are followed and a receipt records each, but there is no signature
+  verification — a compromised tag on the remote is indistinguishable from a
+  good one.
+- **Supabase OAuth is an unconfigured no-op out of the box.** With the
+  `NEXT_PUBLIC_SUPABASE_*` env keys absent, `getSupabaseClient()` returns null
+  and no surface is gated; sign-in is an offer, never a lock.
 - Fonts are fetched at **build time** only (Next.js self-hosts them); the
   running app makes no third-party font requests.
 
