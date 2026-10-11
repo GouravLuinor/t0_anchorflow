@@ -2,6 +2,7 @@
 
 import {
   ARTIFACT_CACHE_CAPACITY,
+  MAX_INPUT_BYTES,
   RESOLVE_BUDGET_MS,
   WORKER_DEADLINE_MS,
 } from "../_lib/constants";
@@ -28,30 +29,65 @@ import type {
 } from "../_lib/types";
 
 /**
- * Phase-A report bodies are memoized across keystrokes keyed by source text.
- * The capacity caps memory; re-insertion on access keeps hot inputs alive.
- * Oversized inputs are not cached — a 256 KiB report is not a cheap LRU entry.
+ * Phase-A report bodies are memoized across keystrokes keyed by the dispatch's
+ * source text AND its `originalByteCount`. The capacity caps memory;
+ * re-insertion on access keeps hot inputs alive. Oversized inputs are not
+ * cached — a 256 KiB report is not a cheap LRU entry, and the gate reads the
+ * ORIGINAL size because the sliced text always looks small.
+ *
+ * The key carries the original byte count for correctness, not tidiness: two
+ * different oversize pastes can be sliced to the SAME 256 KiB prefix, and a
+ * text-only key would serve the first paste's `metrics.byteCount` for the
+ * second one — exactly the drift this payload's `originalByteCount` exists to
+ * prevent, reintroduced through the cache.
  */
 const CACHEABLE_INPUT_BYTES = 32_768;
 const reportCache = new Map<string, ReportBody>();
 
-function getCachedReport(source: string): ReportBody | undefined {
-  const hit = reportCache.get(source);
+function cacheKeyOf(message: Pick<WorkerInputPayload, "source" | "originalByteCount">): string {
+  return `${message.originalByteCount}\n${message.source}`;
+}
+
+function getCachedReport(key: string): ReportBody | undefined {
+  const hit = reportCache.get(key);
   if (hit !== undefined) {
     // Refresh recency (Map iterates in insertion order).
-    reportCache.delete(source);
-    reportCache.set(source, hit);
+    reportCache.delete(key);
+    reportCache.set(key, hit);
   }
   return hit;
 }
 
-function setCachedReport(source: string, body: ReportBody): void {
-  if (new TextEncoder().encode(source).length > CACHEABLE_INPUT_BYTES) return;
-  reportCache.set(source, body);
+function setCachedReport(
+  key: string,
+  body: ReportBody,
+  originalByteCount: number
+): void {
+  if (originalByteCount > CACHEABLE_INPUT_BYTES) return;
+  reportCache.set(key, body);
   if (reportCache.size > ARTIFACT_CACHE_CAPACITY) {
     const oldest = reportCache.keys().next().value;
     if (oldest !== undefined) reportCache.delete(oldest);
   }
+}
+
+/**
+ * Phase A over one dispatch: `analyzeLocal` receives the true original byte
+ * count alongside the capped text, so the reported `metrics.byteCount` /
+ * `metrics.truncated` describe the input the user pasted rather than the slice.
+ * Both engines (worker + main-thread fallback) call through here, so they can
+ * never report different numbers for the same paste (AC-13).
+ */
+function analyzeDispatch(
+  message: Pick<WorkerInputPayload, "source" | "originalByteCount">
+): ReportBody {
+  const cached = getCachedReport(cacheKeyOf(message));
+  if (cached) return cached;
+  const body = analyzeLocal(message.source, {
+    originalByteCount: message.originalByteCount,
+  });
+  setCachedReport(cacheKeyOf(message), body, message.originalByteCount);
+  return body;
 }
 
 // Monotonic dispatch state shared with the phase-rank stale guard.
@@ -108,9 +144,7 @@ async function handleMessage(
       phaseBController = new AbortController();
       const controller = phaseBController;
 
-      const cached = getCachedReport(message.source);
-      const phaseA = cached ?? analyzeLocal(message.source);
-      if (!cached) setCachedReport(message.source, phaseA);
+      const phaseA = analyzeDispatch(message);
 
       const merged = await analyzeResolve(phaseA, {
         fetchImpl,
@@ -130,9 +164,7 @@ async function handleMessage(
     }
 
     // Phase A — offline report, zero network, watchdog-protected upstream.
-    const cached = getCachedReport(message.source);
-    const body = cached ?? analyzeLocal(message.source);
-    if (!cached) setCachedReport(message.source, body);
+    const body = analyzeDispatch(message);
 
     if (isOverDeadline(body.metrics, WORKER_DEADLINE_MS)) {
       post(message.id, message.phase, {
@@ -148,7 +180,9 @@ async function handleMessage(
     // Last-resort envelope for unexpected throws; the measurement stays
     // consistent with normal envelopes instead of degrading to zeros. For a
     // Phase B failure the OFFLINE report is what survives (AC-13).
-    const offline = analyzeLocal(message.source);
+    const offline = analyzeLocal(message.source, {
+      originalByteCount: message.originalByteCount,
+    });
     if (message.phase === "B" && offline.ok) {
       post(message.id, "B", offline);
       return;
@@ -169,6 +203,9 @@ async function handleMessage(
       metrics: {
         ...EMPTY_METRICS,
         ...counts,
+        // Even a last-resort envelope never under-reports the input size.
+        byteCount: message.originalByteCount,
+        truncated: message.originalByteCount > MAX_INPUT_BYTES,
       },
       rateLimit: { ...DEFAULT_RATE_LIMIT },
     } satisfies WorkerOutputPayload);

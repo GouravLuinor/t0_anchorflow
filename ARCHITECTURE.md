@@ -275,7 +275,13 @@ from the parser, native prefix stripped) — a **value, never a throw**.
 
 Truncation at `MAX_INPUT_BYTES` walks the string advancing **whole code points** (a
 surrogate pair is 4 UTF-8 bytes and is never cut in half), and reports the
-**original** byte count via `metrics.byteCount`.
+**original** byte count via `metrics.byteCount`. The count reaches the core two
+ways, and both are required: the worker path receives an ALREADY-capped text
+(the dispatch payload is bounded at the cap) together with the caller's
+`originalByteCount`, so `metrics.byteCount` is that count and `metrics.truncated`
+is `originalByteCount > MAX_INPUT_BYTES`; the main-thread fallback receives the
+full source and `truncateToCap` derives the same two numbers itself. Same cap,
+same code-point boundary, same metrics on both engines.
 
 `usesCap` records `{ seen, scanned, capped }`: collection stops at
 `MAX_USES_SCAN` nodes but keeps counting `seen`, so the report can say "scan capped at
@@ -682,7 +688,7 @@ name below lands on exactly one site (AC-16).
 
 | Constant | Value | Purpose |
 |---|---|---|
-| `MAX_INPUT_BYTES` | `262_144` (256 KiB) | input ceiling (≈ 5k-line workflow ≈ 175 KiB); original byte count reported on truncate |
+| `MAX_INPUT_BYTES` | `262_144` (256 KiB) | input ceiling (≈ 5k-line workflow ≈ 175 KiB); the **original** byte count and `truncated` are reported on truncate — the dispatch payload carries `originalByteCount`, never the uncapped source |
 | `MAX_USES_SCAN` | `2_000` | structural `uses:` nodes scanned (no network); remainder reported, never dropped |
 | `MAX_RESOLVES_PER_RUN` | `48` | network resolutions per run; also bounded by the budget floor |
 | `MAX_RESOLVE_CONCURRENCY` | `4` | parallel in-flight requests |
@@ -694,12 +700,15 @@ name below lands on exactly one site (AC-16).
 | `RESOLVE_DEBOUNCE_MS` | `500` | Phase B debounce after last edit |
 | `WORKER_DEADLINE_MS` | `1_000` | Phase A cooperative budget — **measured / WARN threshold** (AC-11) |
 | `MAX_INPUT_BYTES` / `MAX_USES_SCAN` / `MAX_RESOLVES_PER_RUN` | `262_144` / `2_000` / `48` | truncation, scan-cap and per-run resolve-cap behaviour — all governed by AC-13 |
+| Worker Phase-A report LRU | keyed on `originalByteCount` + the capped source | two different oversize pastes can slice to the same 256 KiB prefix, so a source-only key would serve one paste's byte count for the other |
 | `SYNC_DEADLINE_MS` | `800` | main-thread fallback budget |
 | `WATCHDOG_MS` | `1_500` | Phase A hard wall (terminate + respawn) — never armed for Phase B |
 | Debounce tiers (Phase A) | `0 / 40 / 120 ms` | by source length `≤5k / >5k / >20k` |
 
 Errors are **values, never throws**: malformed YAML and every resolve failure come
-back as status fields, not exceptions. Truncation reports the **original** byte count.
+back as status fields, not exceptions. Truncation reports the **original** byte
+count — carried across the dispatch boundary as `originalByteCount`, so a capped
+payload never makes an oversize workflow look smaller than it is.
 
 ### 7.2 Published caps-name mapping (domain cap ↔ BAR item-7 expectation)
 
@@ -729,7 +738,7 @@ calls** (AC-16):
 | **unsafe owner/repo/ref** | the path-safety gate in `refResolver` | **refused before any request is sent**: `status=unsafe-ref`, no endpoint named in the receipt, an empty chain | `Not resolved — …`: "This reference was refused before any request was sent: the owner \"{owner}\" is not a safe GitHub owner name. Nothing was rewritten and the offline report above is still complete." |
 | **CORS / offline / blocked** | `fetch` throws / `onerror` | `status=network-error`; keep originals; the Phase-A offline report still renders | `Not resolved — {label}`: "api.github.com could not be read for this ref ({note}). Nothing was rewritten and the offline report above is still complete." |
 | **malformed YAML** | `parseWorkflow` returns `!ok` (eemeli's `doc.errors[0]`) | settle `fatalError` via `parseErrorCopy`, clear the report, keep the editor enabled | "That doesn't parse as a workflow YAML — {line}:{column}: {message}." The real string is `That doesn't parse as a workflow YAML — 6:1: All mapping items must start at the same column.`: eemeli's own reason with its `at line L, column C` suffix stripped and the position re-attributed by `toParseError` (no position ⇒ `unknown position`) |
-| **oversized workflow** | `bytes > MAX_INPUT_BYTES` | truncate to the cap **on a code-point boundary**, set `metrics.truncated`, report the **ORIGINAL** bytes in `metrics.byteCount` | the editor's chip: "trimmed to 256 KiB for analysis" (amber, mono, `tabular-nums`) — and the `bytes` metric keeps the ORIGINAL count, so the cap never makes a workflow look smaller than it is |
+| **oversized workflow** | `bytes > MAX_INPUT_BYTES` (the true count, carried on the dispatch payload as `originalByteCount`) | truncate to the cap **on a code-point boundary**, set `metrics.truncated`, report the **ORIGINAL** bytes in `metrics.byteCount` — on the worker path the payload is already capped, so the count is read from the payload and NOT from the sliced text; on the main-thread fallback the full source arrives and `truncateToCap` answers the same | the editor's chip: "trimmed to 256 KiB for analysis" (amber, mono, `tabular-nums`) — and the `bytes` metric keeps the ORIGINAL count, so the cap never makes a workflow look smaller than it is |
 | **`uses:` scan cap** | `usesCap.capped` | keep counting `usesSeen`; the amber strip reports the remainder | `UsesCapNotice` (`role="status"`, aria-label "Uses scan cap", `data-testid="uses-cap-notice"`): "`uses:` scan capped at 2,000 nodes — the remaining {N} were not analyzed. Everything below describes the first {M} nodes only." |
 | **worker crash** | `onerror` / `onmessageerror` | `degradeToMainThread` → the same core at `SYNC_DEADLINE_MS`, amber banner | "Worker crashed — switched to main-thread mode" |
 | **catastrophic parse hang** | the watchdog fires on Phase A | terminate + respawn, bump the request id, settle the friendly error, keep the input enabled | `ANALYZE_TIMEOUT_ERROR`: "Analysis exceeded the time budget — this workflow is too complex to process in time." |
@@ -792,9 +801,14 @@ the URL-shape guard that then applies to every request the resolver does make.
   GitHub-Actions runner IP is the only Anchorflow-side IP that ever talks to the
   API, and its quota is not the visitor's. Locks in AC-5 and catches GitHub API
   changes without ever turning a shared IP into a red suite.
-- **Unit (vitest, node).** Every `_lib` module has a suite in `_lib/__tests__/`
-  (plus the tool-level `__tests__/` for the first-load boundary and the contrast
-  floors); node env, pure core, no DOM/React. Includes the `_lib` source-scan test
+- **Unit (vitest, node).** Every `_lib` module with logic in it has a suite in
+  `_lib/__tests__/` (plus the tool-level `__tests__/` for the first-load boundary
+  and the contrast floors); node env, pure core, no DOM/React. The three with no
+  suite of their own are the three with no logic to unit-test: `types.ts` (zero
+  runtime imports — types only), `supabaseClient.ts` (an env-gated lazy SDK seam,
+  asserted through the no-op journey and the excludes below) and `guide.ts`
+  (KnowledgeHub content data). `actionCatalog.ts` — the knowledge base both
+  audits read — has one. Includes the `_lib` source-scan test
   (no `fetch`/`globalThis.fetch` under `_lib/**`), the caps-name grep test, the
   `analyzeResolve` merge test, the `shouldPromptSignIn` policy matrix, the
   byte-cap/surrogate-pair truncation tests, the path-safety gate tests, and the
@@ -806,8 +820,11 @@ the URL-shape guard that then applies to every request the resolver does make.
   `resolve` (the invocable resolve journey, every pinned SHA, the rate-limit and
   offline friendly copy, and the tightened AC-12 URL-shape guard);
   `pipeline` (worker happy path, the degraded main-thread path returning the SAME
-  report, and the **catastrophic watchdog journey** — a worker that never answers
-  settles the friendly copy inside a bounded timeout with the input still enabled);
+  report, the **input-cap journey** — an oversize paste reported at its TRUE
+  original byte count with the amber "trimmed to 256 KiB" chip on both engines,
+  while the worker payload itself stays capped at `MAX_INPUT_BYTES` — and the
+  **catastrophic watchdog journey**: a worker that never answers settles the
+  friendly copy inside a bounded timeout with the input still enabled);
   `visual` (responsive structure at 390/1440, stacking, **zero-egress request
   guard**, zero uncaught errors). Pixel baselines ship GREEN-or-SKIPPED.
 - **Coverage gates** (SchemaCraft's, **shipped and wired into

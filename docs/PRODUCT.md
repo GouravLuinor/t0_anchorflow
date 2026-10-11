@@ -34,9 +34,10 @@ Everything below renders on first load — no network, no opt-in, no flag.
 
 **The offline report (Phase A, always):**
 
-1. **Eight `uses:` classifications** per node, in source order — `remoteRef`,
-   `sha40`, `sha256`, `local`, `docker`, and the `invalid`/moving/pending notes
-   that keep an unparseable or unresolved node visible instead of invisible.
+1. **Six `uses:` classifications** per node, in source order — `remoteRef`,
+   `sha40`, `sha256`, `local`, `docker` and `invalid` — with the moving /
+   pending / already-pinned notes alongside them, so an unresolvable or
+   unparseable node stays visible instead of becoming invisible.
 2. **Four finding families**, severity-banded worst-first with a one-line legend
    under the header: `unpinned-uses`, `moving-ref`,
    `excessive-permissions`, `template-injection`, `dangerous-trigger`,

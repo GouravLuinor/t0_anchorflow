@@ -291,7 +291,22 @@ export type FetchLike = (
 export interface WorkerInputPayload {
   id: number;
   phase: "A" | "B";
+  /** The analyzed text, already cut at `MAX_INPUT_BYTES` on a code-point boundary. */
   source: string;
+  /**
+   * Byte length of the ORIGINAL, pre-cap source the dispatch was cut from
+   * (=== `countBytes(source)` whenever nothing was cut).
+   *
+   * REQUIRED, not optional: it is how the true input size survives the cap.
+   * Without it `analyzeLocal` sees an already-sliced 262,144-byte string and
+   * reports THAT as `metrics.byteCount` with `truncated: false`, so the worker
+   * path would disagree with the main-thread fallback (which hands over the
+   * full source) and the cap would make an oversize workflow look smaller than
+   * it is (SPEC §9 AC-13). It costs one number on the structured-clone payload
+   * — the alternative, posting the full source, is what the cap exists to
+   * prevent.
+   */
+  originalByteCount: number;
   resolve: boolean; // Phase B only: run the network phase (off on the typing path)
   budget: RateLimitState; // carried across the session
 }

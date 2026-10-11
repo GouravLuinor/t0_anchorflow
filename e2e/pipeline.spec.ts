@@ -15,6 +15,9 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  *   · the CATASTROPHIC path never hangs: a worker that accepts a dispatch and
  *     never answers is killed by the 1.5 s Phase-A watchdog, which settles the
  *     friendly verdict and leaves the editor usable (BAR §10 item 7);
+ *   · the CAP journey: an oversize paste is reported at its TRUE original byte
+ *     count with the amber "trimmed to 256 KiB" chip, on BOTH engines, while
+ *     the worker payload itself stays bounded at the cap (SPEC §9 AC-13);
  *   · neither path issues a single external request (the offline default), so
  *     this suite doubles as a privacy regression guard.
  *
@@ -422,4 +425,203 @@ test("catastrophic path: a worker that never answers settles the watchdog verdic
 
   // Still no external request on the offline default path.
   expect(external).toEqual([]);
+});
+
+/**
+ * The input-cap journey (SPEC §9 AC-13).
+ *
+ * A paste larger than `MAX_INPUT_BYTES` used to arrive at the worker ALREADY
+ * sliced: the dispatch carried 262,144 bytes of text and nothing else, so
+ * `analyzeLocal` measured the slice and reported `bytes = 262144` with no
+ * "trimmed" chip — the workflow looked ~73 kB smaller than it really was, and
+ * the forced-degrade path (which receives the full source) reported the true
+ * size. The two engines therefore disagreed on the same paste.
+ *
+ * What this journey pins:
+ *   · the `bytes` metric is the TRUE original byte count, not the cap;
+ *   · the amber "trimmed to 256 KiB for analysis" chip is visible;
+ *   · the worker path and the forced-degrade path agree, metric for metric;
+ *   · the dispatch payload that crossed into the worker really was capped —
+ *     bounded payload, truthful count, not one at the expense of the other.
+ */
+
+/** Comfortably past the 256 KiB cap; the bytes live in one big block. */
+const OVERSIZE_TARGET_BYTES = 320_000;
+
+/**
+ * An oversize workflow with a SMALL node count: thousands of `jobs:` would
+ * measure the report renderer's throughput rather than the input cap, and the
+ * fixture exists to be pasted, not to be admired. The bytes live in one long
+ * generated block, exactly like a generated workflow with an embedded script.
+ */
+function oversizeWorkflow(): string {
+  const lines = [
+    "name: oversize",
+    "on:",
+    "  push:",
+    "    branches: [main]",
+    "",
+    "permissions:",
+    "  contents: read",
+    "",
+    "jobs:",
+    "  build:",
+    "    runs-on: ubuntu-latest",
+    "    steps:",
+    "      - uses: actions/checkout@v4",
+    "      - name: generated bootstrap",
+    "        run: |",
+  ];
+  let n = 0;
+  while (byteLength(lines.join("\n") + "\n") < OVERSIZE_TARGET_BYTES) {
+    n += 1;
+    lines.push(
+      `          # shard ${n} padding line to reach the byte cap with the same structural shape`
+    );
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+/** UTF-8 byte length — the same unit `countBytes` reports. */
+function byteLength(text: string): number {
+  return Buffer.byteLength(text, "utf8");
+}
+
+const OVERSIZE_INPUT = oversizeWorkflow();
+const OVERSIZE_TRUE_BYTES = byteLength(OVERSIZE_INPUT);
+
+/** The metrics grid renders `value.toLocaleString("en-US")` — grouped digits. */
+const grouped = (value: number): string => value.toLocaleString("en-US");
+
+/**
+ * Sets the textarea the way the browser does for a paste — the native value
+ * setter plus one `input` event — so React's synthetic `onChange` runs the
+ * normal pipeline (debounce → worker → render).
+ *
+ * `fill()` is deliberately NOT used here: Playwright's `fill` on a
+ * `<textarea>` selects all and routes the text through the keyboard
+ * (`Input.insertText`), which for a 320 kB paste is one editing command per
+ * character — measured at ~30 s on this box. That is Playwright's typing
+ * path, not a property of the app, and it would make this journey a
+ * stopwatch test. Everything after the set is the real pipeline on real DOM.
+ * The value is asserted to round-trip, exactly as `fillStable` does.
+ */
+async function pasteStable(page: Page, value: string): Promise<void> {
+  const input = page.locator("#tool-source-input");
+  await expect(async () => {
+    await input.evaluate((element, next) => {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype,
+        "value"
+      )!.set;
+      setter!.call(element, next);
+      element.dispatchEvent(
+        new Event("input", { bubbles: true, composed: true })
+      );
+    }, value);
+    await expect(input).toHaveValue(value);
+  }).toPass({ timeout: READY_TIMEOUT });
+}
+
+test("the input cap: an oversize paste reports its TRUE byte count on both engines", async ({
+  page,
+}) => {
+  // Sanity on the fixture itself: over the cap, or the journey below would
+  // pass for the wrong reason.
+  expect(OVERSIZE_TRUE_BYTES).toBeGreaterThan(262_144);
+
+  // 1 — the WORKER path, on its own page, with every message posted into the
+  //    worker recorded (the engine flag alone would not prove what was
+  //    dispatched).
+  const worker = await (async () => {
+    const ctx = page.context();
+    const workerPage = await ctx.newPage();
+    await recordWorkerPosts(workerPage);
+    const external = trackExternal(workerPage);
+    await bootWorkspace(workerPage);
+
+    await expect(station(workerPage)).toHaveAttribute(
+      "data-engine",
+      "worker",
+      { timeout: READY_TIMEOUT }
+    );
+
+    await pasteStable(workerPage, OVERSIZE_INPUT);
+    await settleReport(workerPage, "name: oversize");
+
+    // The TRUE original byte count, not the cap — the number that used to read
+    // 262144 on this path.
+    const bytes = await metric(workerPage, "bytes");
+    const characters = await metric(workerPage, "characters");
+    const lines = await metric(workerPage, "lines");
+    expect(bytes).toBe(grouped(OVERSIZE_TRUE_BYTES));
+
+    // The amber chip states the trim (driven by `metrics.truncated`).
+    await expect(
+      workerPage.getByText("trimmed to 256 KiB for analysis")
+    ).toBeVisible();
+
+    // The payload that crossed into the worker was genuinely capped, AND it
+    // carried the true original byte count alongside it. Bounding the clone
+    // and telling the truth are both required; this proves the payload did
+    // both at once — and that the compute really left the main thread.
+    const posts = await workerPage.evaluate(
+      () =>
+        (
+          window as unknown as {
+            __workerPosts: Array<Record<string, unknown>>;
+          }
+        ).__workerPosts
+    );
+    const phaseA = posts.filter((post) => post.phase === "A");
+    expect(phaseA.length).toBeGreaterThan(0);
+    const last = phaseA[phaseA.length - 1];
+    expect(last.originalByteCount).toBe(OVERSIZE_TRUE_BYTES);
+    const dispatched = byteLength(last.source as string);
+    expect(dispatched).toBeLessThanOrEqual(262_144);
+    expect(dispatched).toBeLessThan(OVERSIZE_TRUE_BYTES);
+    // The dispatched text is a prefix of what the user pasted.
+    expect(OVERSIZE_INPUT.startsWith(last.source as string)).toBe(true);
+
+    // The analysis covered the CAPPED text: its line count is the capped one,
+    // not the original's — the cap is applied to the analysis, not to the
+    // reported size.
+    expect(Number(lines.replace(/,/g, ""))).toBeGreaterThan(0);
+    expect(Number(lines.replace(/,/g, ""))).toBeLessThan(
+      OVERSIZE_INPUT.split("\n").length
+    );
+    expect(Number(characters.replace(/,/g, ""))).toBeLessThan(
+      OVERSIZE_INPUT.length
+    );
+
+    // Zero egress on the default path, even for an oversize paste.
+    expect(external).toEqual([]);
+
+    await workerPage.close();
+    return { bytes, characters, lines };
+  })();
+
+  // 2 — the FORCED-DEGRADE path: the same paste on the main thread, which
+  //    receives the FULL source and must land on the same numbers.
+  await killWorkerOnSpawn(page);
+  const degradedExternal = trackExternal(page);
+  await bootWorkspace(page);
+
+  await expect(station(page)).toHaveAttribute("data-engine", "main", {
+    timeout: READY_TIMEOUT,
+  });
+
+  await pasteStable(page, OVERSIZE_INPUT);
+  await settleReport(page, "name: oversize");
+
+  // Identical engines of truth: byte count, characters and lines all match.
+  expect(await metric(page, "bytes")).toBe(worker.bytes);
+  expect(worker.bytes).toBe(grouped(OVERSIZE_TRUE_BYTES));
+  expect(await metric(page, "characters")).toBe(worker.characters);
+  expect(await metric(page, "lines")).toBe(worker.lines);
+
+  // ...and the same chip on the main-thread path.
+  await expect(page.getByText("trimmed to 256 KiB for analysis")).toBeVisible();
+
+  expect(degradedExternal).toEqual([]);
 });

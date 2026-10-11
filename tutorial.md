@@ -57,9 +57,10 @@ recomputed or decorated on the way out. From top to bottom:
   resolved.
 
 When your input is very large, the editor notes that it was trimmed to the
-analysis cap — the original byte count is always reported, never hidden. The
-footer reports the engine time and whether the worker or the main-thread
-fallback ran the job.
+analysis cap — the original byte count is always reported, never hidden. Only
+the first 256 KiB is analysed; the byte reading in the footer is the size of
+what you pasted, whether the analysis ran in the worker or on the main thread.
+The footer also reports the engine time and which of the two ran the job.
 
 ## 4. Copying, everywhere
 

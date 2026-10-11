@@ -26,7 +26,7 @@ the margin against `WATCHDOG_MS`.
 
 | | |
 |---|---|
-| CPU | 13th Gen Intel Core i7-13620H (24 logical cores, 12 physical) |
+| CPU | 13th Gen Intel Core i7-13620H — **12 logical CPUs** (6 cores × 2 threads, per `nproc` / `lscpu`) |
 | RAM | 6.9 GB total (~2.6 GB available during the run) |
 | OS | linux x64 |
 | Node | v24.13.0 (npm 11.8.0) |
@@ -40,9 +40,9 @@ builder machine lands lower.
 
 | Case | Input | median | p95 | max | Watchdog margin |
 |---|---|---|---|---|---|
-| 1,000-line workflow | 971 lines · 30,764 B | **11.4–15.9 ms** | 18.4–27.5 ms | 23.1–48.2 ms | **31–65×** |
-| 5,000-line workflow | 4,815 lines · 153,579 B | **52.9–64.1 ms** | 57.8–101.3 ms | 58.7–118.8 ms | **12.6–25.6×** |
-| Oversize, 3× the input cap | 23,499 lines · 786,914 B | **99.7–113.8 ms** | 111.7–188.0 ms | 117.5–241.8 ms | **6.2–12.8×** |
+| 1,000-line workflow | 971 lines · 30,764 B | **14.7–16.9 ms** | 23.8–31.0 ms | 27.0–39.6 ms | **38–56×** |
+| 5,000-line workflow | 4,815 lines · 153,579 B | **62.4–68.6 ms** | 79.6–101.0 ms | 84.0–115.5 ms | **13.0–17.9×** |
+| Oversize, 3× the input cap | 23,499 lines · 786,914 B | **114.3–125.0 ms** | 129.1–166.2 ms | 142.3–193.9 ms | **7.7–10.5×** |
 
 (Ranges over **ten consecutive runs** of the same command on the machine above;
 quote the single-run p95. Every one of them is far inside the watchdog.)
@@ -52,13 +52,22 @@ quote the single-run p95. Every one of them is far inside the watchdog.)
 - **The oversize case exercises the cap honestly.** 786,914 B in → the analysis
   runs on the first 262,144 B, and the **original** byte count is still what the
   `bytes` metric reports (SPEC §9 AC-13) — the cap never makes a workflow look
-  smaller than it is. The cut lands on a code-point boundary:
+  smaller than it is. On the browser path the cap is applied BEFORE the worker
+  dispatch, so the payload is bounded: `truncateForDispatch`
+  (`_lib/textMetrics.ts`) returns the capped text **together with**
+  `originalBytes` / `truncated`, and `analyzeLocal` takes that count as
+  `originalByteCount` (`metrics.byteCount = originalByteCount ?? countBytes(...)`),
+  reporting the true size with `truncated: true` instead of measuring the slice.
+  The main-thread fallback hands over the full source and reaches the same
+  numbers through `truncateToCap`, so both engines agree byte-for-byte — proved
+  by `_lib/__tests__/analyze.test.ts` and by the input-cap journey in
+  `e2e/pipeline.spec.ts`. The cut lands on a code-point boundary:
   `_lib/__tests__/analyze.test.ts` and `textMetrics.test.ts` assert no lone
   surrogate survives, and `truncateForDispatch` gates on `countBytes`, so a
   CJK-heavy paste is capped by bytes rather than by UTF-16 units.
-- **The watchdog margin is 6×–65×, not 1.1×.** The worst p95 across ten runs is
-  ~188 ms — still ~8× inside `WATCHDOG_MS` (1,500 ms) — and the worst *median* is
-  ~114 ms. The terminate + respawn path therefore stays what it is designed for:
+- **The watchdog margin is 7.7×–56×, not 1.1×.** The worst p95 across ten runs is
+  ~166 ms — still ~9× inside `WATCHDOG_MS` (1,500 ms) — and the worst *median* is
+  ~125 ms. The terminate + respawn path therefore stays what it is designed for:
   a pathological parse on a slow mobile tab, never the normal case. The
   catastrophic journey in `e2e/pipeline.spec.ts` forces that path with a worker
   that never answers and asserts both the friendly verdict and a still-enabled
@@ -82,18 +91,27 @@ quote the single-run p95. Every one of them is far inside the watchdog.)
 `npm run bench` also spends the **same byte budget** two ways — one clean node
 process per shape — and reports the heap each parse costs:
 
-Five runs of the probe (one clean process per shape, each time):
+Ten runs of the probe (one clean `node --import tsx` process per shape, spawned
+by `memoryProbe()` on every `npm run bench` invocation; each row below is one
+such process, so no row measures the previous case's garbage):
 
-| Shape | Input | Heap delta (5 runs) | RSS |
+| Shape | Input | Heap delta (10 runs) | RSS |
 |---|---|---|---|
-| flat workflow (steps on separate lines) | 255 KiB | **+18.8 / +19.1 / +19.4 / +19.6 / +21.3 MiB** | 111.3 / 115.6 / 129.8 MiB |
-| deeply nested flow mappings | 248 KiB | **+45.1 / +45.2 / +45.3 / +46.7 / +51.6 MiB** | 168.9 / 171.2 / 175.8 MiB |
+| flat workflow (steps on separate lines) | 255 KiB | **+17.3 / +17.9 / +18.0 / +18.1 / +20.1 / +21.3 / +21.3 / +21.4 / +21.4 / +21.8 MiB** | 113.2 / 113.9 / 114.4 / 115.6 / 117.1 / 117.2 / 117.5 / 118.6 / 119.7 / 119.8 MiB |
+| deeply nested flow mappings | 248 KiB | **+46.5 / +47.3 / +47.3 / +49.1 / +50.4 / +51.1 / +52.3 / +53.6 / +58.4 / +62.6 MiB** | 168.7 / 170.4 / 171.9 / 172.2 / 172.9 / 173.1 / 173.2 / 175.0 / 175.1 / 175.5 MiB |
 
 **Observation (the one thing this bench found worth writing down):** for an
-almost identical byte count, the deeply nested flow mapping costs roughly **3×
-the heap** of the flat shape. The eemeli parser builds a real node tree, and a
+almost identical byte count, the deeply nested flow mapping costs roughly
+**2.5–3.5× the heap** of the flat shape (median +50.4 MiB against a flat median of
++20.1 MiB; the worst pair is +62.6 against +18.0). The eemeli parser builds a real node tree, and a
 `{ a: { b: { c: … } } }` chain spends each byte on a new object plus its parent
 link, whereas a flat `- uses:` step spends its bytes mostly on leaves.
+
+The earlier revision of this table recorded +45.1…+51.6 MiB for the nested case
+and did not reproduce on this machine: ten clean runs land at +46.5…+62.6 MiB,
+and so do independent re-runs. The range is kept whole rather than trimmed to
+the earlier one — the nesting amplification is real, its exact size is
+machine-sensitive, and the flat case reproduces at +17.3…+21.8 MiB either way.
 
 That is not a defect — the input cap bounds how much of it can arrive — but it is
 the shape a hostile or generated workflow reaches for first, so it is measured
@@ -101,15 +119,21 @@ and stated rather than assumed away. The watchdog is the backstop.
 
 ## Build & suite timings (same machine)
 
-| Command | Result |
-|---|---|
-| `npm run build` | ~12 s, standalone output at `.next/standalone` |
-| `npm run typecheck` | ~2 s, 0 errors |
-| `npm run lint` | ~3 s, 0 problems |
-| `npm test` (21 suites, 350 tests) | ~1.3 s |
-| `npm run test:coverage` | ~2.5 s (thresholds green — see `QUALITY_REPORT.md`) |
-| `npm run test:e2e` (42 passed, 2 skipped) | ~40 s (includes the standalone build the webServer boots) |
-| First Load JS, `/tools/anchorflow` | **180 kB** (103 kB shared) |
+Two different clocks are reported, because they are not the same number and
+quoting one for the other is how a build gets called "fast": **compile** is
+what Next.js prints (`Compiled successfully in X`), **wall** is what the shell
+measures for the whole command. The gap is type-checking, page-data collection,
+static generation, trace collection and process start-up.
+
+| Command | Compile | Wall | Result |
+|---|---|---|---|
+| `npm run build` | 14.6 s | **47.7 s** | standalone output at `.next/standalone` |
+| `npm run typecheck` | — | 3.4 s | 0 errors |
+| `npm run lint` | — | 8.5 s | 0 problems |
+| `npm test` (22 suites, 380 tests) | — | 3.8 s | 380 passed, 1 skipped (live oracle) |
+| `npm run test:coverage` | — | 5.7 s | thresholds green — see `QUALITY_REPORT.md` |
+| `npm run test:e2e` (43 passed, 2 skipped) | — | 4 m 28 s | includes the standalone build the webServer boots (reuse is disabled by design — see `playwright.config.ts`) |
+| First Load JS, `/tools/anchorflow` | — | — | **180 kB** (103 kB shared) |
 
 ## Bundle budget — how the happy path stays tiny
 

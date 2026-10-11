@@ -116,6 +116,56 @@ rather than carried forward.
   measured numbers — the `_lib` module map, the failure-mode copy, the token table
   and the caps table now match the code.
 
+### Fixed — the round-3 AC-13 correction (same release)
+
+A third independent verification pass returned SHIP-AFTER-FIXES with one
+critical finding and a set of numeric slips. The critical one was real: the
+worker dispatch cap lost the input's true size.
+
+- **The byte cap no longer hides the input's real size (SPEC §9 AC-13).**
+  `truncateForDispatch` returned only the sliced text, so the worker payload
+  carried 262,144 bytes of an already-capped source and nothing else.
+  `analyzeLocal` measured what it was given: `bytes = 262144`,
+  `truncated = false`, and the amber "trimmed to 256 KiB" chip never rendered.
+  A 334,933-byte paste therefore looked ~73 kB smaller than it was — and the
+  forced-degrade path, which receives the full source, reported the true count,
+  so the two engines openly disagreed on the same paste.
+  `truncateForDispatch` now returns the whole `Truncation` (text +
+  `originalBytes` + `truncated`); the dispatch payload carries
+  `originalByteCount`; `analyzeLocal` reports
+  `metrics.byteCount = originalByteCount ?? countBytes(actualSource)` with
+  `truncated = originalByteCount > MAX_INPUT_BYTES`; and the main-thread
+  fallback hands over the full source so `truncateToCap` derives the same two
+  numbers. The payload stays bounded at the cap — the clone never carries the
+  uncapped source — and the worker's Phase-A report LRU is keyed on
+  `originalByteCount` + source, because two different oversize pastes can slice
+  to the same 256 KiB prefix. Both engines now agree, metric for metric, on an
+  oversize paste.
+- **Test integrity:** `playwright.config.ts` set `reuseExistingServer: !CI`,
+  which silently adopted whatever was already listening on 3004 — an orphan
+  `next-server` nearly produced a false green against a stale artifact. Reuse is
+  now disabled locally as well as in CI: Playwright refuses to start while the
+  port is busy, so a stale server fails loudly instead of serving the suite a
+  green lie.
+- **Tests:** an input-cap e2e journey pastes 320,000 bytes and asserts the TRUE
+  byte count, the amber cap chip, the capped dispatch payload that really
+  crossed into the worker, and the worker/forced-degrade agreement; unit tests
+  cover the carried count, both engines' identical metrics and the defensive
+  over-cap case; `actionCatalog.ts` — 10.7 KB of real logic with no suite of its
+  own — has one now (24 cases).
+- **Docs regenerated from measurement:** coverage recomputed from
+  `npm run test:coverage` (branches 80.76 % → **82.36 %**,
+  `refResolver.ts` statements 85.1 % → **88.44 %**); the nested-flow memory
+  probe re-measured on ten clean processes per shape (+46.5…+62.6 MiB nested,
+  +17.3…+21.8 MiB flat) after the previous range did not reproduce; the bench
+  table re-measured over ten consecutive runs; the machine row corrected to the
+  12 logical CPUs `nproc` actually reports; README's bench summary aligned to
+  `BENCHMARKS.md`; compile-vs-wall times separated (build 14.6 s compile /
+  47.7 s wall); "eight `uses:` classes" corrected to **six** in `README.md` and
+  `docs/PRODUCT.md`; the "every `_lib` module has a suite" claim softened to
+  name its three exceptions; and the `next/font` build-time-vs-runtime caveat
+  stated in README.
+
 ### Performance
 
 First Load JS for `/tools/anchorflow` is **180 kB** against the 200 kB budget.

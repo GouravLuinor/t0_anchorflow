@@ -2,7 +2,9 @@
 
 Every number in this file is the output of a command that ships in this
 repository, run on the commit it describes (2026-10-11, v1.0.0). Where a gate did
-not run, this report says so instead of leaving a green tick behind.
+not run, this report says so instead of leaving a green tick behind. It was
+last regenerated after the AC-13 dispatch fix, so the suite, coverage and e2e
+counts below are that fix's numbers, not the ones it replaced.
 
 ## Gate results
 
@@ -10,10 +12,10 @@ not run, this report says so instead of leaving a green tick behind.
 |---|---|---|
 | Typecheck | `npm run typecheck` | **exit 0**, 0 errors |
 | Lint | `npm run lint` | **exit 0**, 0 problems |
-| Unit tests | `npm test` | **exit 0** — 21 suites, **350 passed**, 1 skipped (the live oracle, `GH_LIVE`-gated) |
-| Coverage | `npm run test:coverage` | **exit 0** — statements 92.76 %, branches 81.66 %, functions 96.88 %, lines 95.96 % (all above the gated thresholds) |
+| Unit tests | `npm test` | **exit 0** — 22 suites, **380 passed**, 1 skipped (the live oracle, `GH_LIVE`-gated) |
+| Coverage | `npm run test:coverage` | **exit 0** — statements 93.25 %, branches 82.36 %, functions 96.88 %, lines 95.97 % (all above the gated thresholds) |
 | Build | `npm run build` | **exit 0** — `/tools/anchorflow` First Load JS **180 kB** (103 kB shared) |
-| E2E | `npm run test:e2e` | **exit 0** — **42 passed**, 2 skipped (pixel baselines, by policy) |
+| E2E | `npm run test:e2e` | **exit 0** — **43 passed**, 2 skipped (pixel baselines, by policy) |
 
 The complete order is the one `AGENTS.md` §2.9 fixes:
 
@@ -29,19 +31,24 @@ Coverage is scoped to the pure core (`app/tools/anchorflow/_lib`) and gated in
 
 | Metric | Threshold | Measured | Headroom |
 |---|---|---|---|
-| Functions | ≥ 90 % | 96.88 % | +6.9 pts |
-| Statements | ≥ 80 % | 92.76 % | +12.8 pts |
-| Branches | ≥ 70 % | 80.76 % | +10.8 pts |
-| Lines | ≥ 80 % | 95.96 % | +16.0 pts |
+| Functions | ≥ 90 % | 96.88 % (218/225) | +6.9 pts |
+| Statements | ≥ 80 % | 93.25 % (1368/1467) | +13.3 pts |
+| Branches | ≥ 70 % | 82.36 % (911/1106) | +12.4 pts |
+| Lines | ≥ 80 % | 95.97 % (1192/1242) | +16.0 pts |
 
 Four files are excluded from the denominator, and the exclusion is scoped rather
 than blanket: the `__tests__` folder (test code is not product code),
 `supabaseClient.ts` (an env-gated lazy SDK seam whose bodies only run when keys
 are present), `presets.ts` + `guide.ts` (content data), and `constants.ts` (a
-file of `export const` lines asserted by its own grep suite). The lowest per-file
-numbers that remain inside the gate are `refResolver.ts` (85.1 % statements) and
-`permissionAudit.ts` (86.1 % statements) — both real code with real tests, not
-files hidden by the excludes.
+file of `export const` lines asserted by its own grep suite). Every other `_lib`
+module with logic in it has a suite; the three `_lib` files that do not are
+`types.ts` (types only), `supabaseClient.ts` and `guide.ts`. The lowest per-file
+numbers that remain inside the gate are `permissionAudit.ts` (86.07 %
+statements) and `refResolver.ts` (88.44 % statements) — both real code with real
+tests, not files hidden by the excludes. `actionCatalog.ts`, the knowledge base
+the permission and trigger audits read, now has a suite of its own
+(`permissionAudit.ts` had been its only exercised path) and sits at 100 %
+statements / 98.21 % branches.
 
 ## What is verified, not just claimed
 
@@ -50,11 +57,12 @@ files hidden by the excludes.
 | Determinism: two runs over the same inputs are byte-identical, including a **future-dated 429 fixture** whose countdown used to read the ambient clock | `_lib/__tests__/analyzeResolve.test.ts` (the test fails if `resolutionFindings` re-reads `Date.now()`) |
 | Zero egress on the default path (`autoResolve` defaults `false`) | `e2e/visual.spec.ts` (both journeys assert an empty external-request log) |
 | `_lib` purity — no React, no DOM, no `fetch` | `_lib/__tests__/purity.test.ts` |
-| The worker round-trip, the main-thread fallback and the **watchdog path** | `e2e/pipeline.spec.ts` (3 journeys, one of which forces a worker that never answers) |
+| The worker round-trip, the main-thread fallback, the **watchdog path** and the **input cap on both engines** | `e2e/pipeline.spec.ts` (4 journeys, one of which forces a worker that never answers, one of which pastes 320,000 bytes and asserts the TRUE byte count, the amber cap chip and the capped dispatch payload) |
 | The resolve journey, receipts, the AC-12 URL shape guard and the invocation guard | `e2e/resolve.spec.ts` |
 | Contrast floors on the colours that actually render | `app/tools/anchorflow/__tests__/contrast.test.ts` (parses `app/globals.css` and computes WCAG 2.1 ratios) |
 | The heavy core never rides the first paint | `app/tools/anchorflow/__tests__/firstLoadBoundary.test.ts` |
 | The input cap is a **byte** cap, never a UTF-16-length cap, and never splits a surrogate | `_lib/__tests__/textMetrics.test.ts` |
+| The cap never hides the input's real size: the capped dispatch payload carries `originalByteCount`, and the worker and main-thread paths report identical metrics on an oversize paste | `_lib/__tests__/analyze.test.ts` (the carried-count tests) |
 | Ref path safety — owner/repo charset, `..` rejection, bounded refs; nothing unsafe is ever fetched | `_lib/__tests__/refResolver.test.ts` (11 cases) |
 
 ## First Load JS

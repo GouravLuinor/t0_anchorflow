@@ -293,6 +293,15 @@ export function useToolWorker() {
       const worker = workerRef.current;
 
       if (!degradedRef.current && worker) {
+        // The dispatch payload is CAPPED at MAX_INPUT_BYTES so nothing larger
+        // ever crosses the structured-clone boundary — but the cap must not
+        // erase the input's true size, so `truncateForDispatch` returns the
+        // original byte count and the truncated verdict alongside the text and
+        // both ride the payload. Without them the worker would analyze a
+        // 262,144-byte slice and report THAT as the input size, disagreeing
+        // with the main-thread fallback below (AC-13).
+        const dispatch = truncateForDispatch(inputRef.current.source);
+
         // Watchdog: a native parse cannot be interrupted mid-run, so the worst
         // case is terminate + respawn with a friendly verdict.
         watchdogIdRef.current = id;
@@ -321,7 +330,8 @@ export function useToolWorker() {
         worker.postMessage({
           id,
           phase: "A",
-          source: truncateForDispatch(inputRef.current.source),
+          source: dispatch.text,
+          originalByteCount: dispatch.originalBytes,
           resolve: false,
           budget: useToolStore.getState().rateLimit,
         } satisfies WorkerInputPayload);
@@ -331,6 +341,12 @@ export function useToolWorker() {
       // Main-thread fallback path — identical semantics via the same pure
       // core, under the stricter sync deadline that protects UI frames. The
       // core is loaded on demand so the parser stays out of First Load JS.
+      //
+      // It hands over the FULL source (nothing crosses a structured-clone
+      // boundary here, so there is no payload to bound) and `analyzeLocal`
+      // caps it itself. `metrics.byteCount` / `metrics.truncated` therefore
+      // come out identical to the worker path above — the same core, the same
+      // cap, the same true original size.
       void (async () => {
         try {
           const { analyzeLocal } = await import("../_lib/analyze");
@@ -391,6 +407,9 @@ export function useToolWorker() {
       const worker = workerRef.current;
       const id = ++requestIdRef.current;
       dispatchRef.current = { requestId: id, lastPhaseRank: 1 };
+      // Same capped payload and the same carried original byte count as Phase
+      // A, so a resolve never re-measures the workflow a different way.
+      const dispatch = truncateForDispatch(inputRef.current.source);
 
       // Never two resolves in flight: abort the previous fan-out first, so
       // the hourly budget is never spent twice on a superseded request.
@@ -403,7 +422,8 @@ export function useToolWorker() {
         worker.postMessage({
           id,
           phase: "B",
-          source: truncateForDispatch(inputRef.current.source),
+          source: dispatch.text,
+          originalByteCount: dispatch.originalBytes,
           resolve: true,
           budget: useToolStore.getState().rateLimit,
         } satisfies WorkerInputPayload);
@@ -411,7 +431,9 @@ export function useToolWorker() {
       }
 
       // Degraded fallback: the SAME Phase-B merge on the main thread, with
-      // the network seam supplied HERE instead of inside the worker.
+      // the network seam supplied HERE instead of inside the worker. As in
+      // Phase A it receives the full source — the same true byte count the
+      // worker payload carries, derived rather than transmitted.
       void (async () => {
         const [{ analyzeLocal }, { analyzeResolve }] = await Promise.all([
           import("../_lib/analyze"),

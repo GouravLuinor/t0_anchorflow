@@ -15,7 +15,9 @@ import {
  * `String.length` gate gets WRONG: CJK text (3 UTF-8 bytes per UTF-16 unit) and
  * non-BMP emoji (2 UTF-16 units, 4 UTF-8 bytes). Both are why
  * `truncateForDispatch` gates on `countBytes` and cuts on a code-point
- * boundary rather than slicing by index.
+ * boundary rather than slicing by index — and returns the ORIGINAL byte count
+ * with it, because that is what the worker payload needs in order to report
+ * the input's true size instead of the slice's.
  */
 
 describe("the plain counters", () => {
@@ -99,30 +101,50 @@ describe("truncateForDispatch — the worker dispatch cap (A3)", () => {
     expect(countBytes(source)).toBeGreaterThan(MAX_INPUT_BYTES);
 
     const dispatched = truncateForDispatch(source);
-    expect(countBytes(dispatched)).toBeLessThanOrEqual(MAX_INPUT_BYTES);
-    expect(dispatched.length).toBeLessThan(source.length);
+    expect(countBytes(dispatched.text)).toBeLessThanOrEqual(MAX_INPUT_BYTES);
+    expect(dispatched.text.length).toBeLessThan(source.length);
     // The cut lands on a whole-character boundary: the dispatched text is an
     // exact run of the same character, never a mangled tail.
-    expect(dispatched).toBe("漢".repeat(dispatched.length));
-    expect(countBytes(dispatched) % 3).toBe(0);
+    expect(dispatched.text).toBe("漢".repeat(dispatched.text.length));
+    expect(countBytes(dispatched.text) % 3).toBe(0);
+  });
+
+  it("carries the ORIGINAL byte count + truncated verdict, not just the text", () => {
+    // The slip this closes: returning only the sliced text meant the worker
+    // payload carried no record of how big the input really was, so
+    // `analyzeLocal` measured the slice and reported 262,144 bytes /
+    // `truncated: false` on a paste that was 300,000 bytes.
+    const source = "漢".repeat(100_000); // 300,000 bytes
+    const dispatched = truncateForDispatch(source);
+    expect(dispatched.originalBytes).toBe(300_000);
+    expect(dispatched.originalBytes).toBeGreaterThan(MAX_INPUT_BYTES);
+    expect(dispatched.truncated).toBe(true);
+    // And the true count is NOT the dispatched text's own size.
+    expect(dispatched.originalBytes).not.toBe(countBytes(dispatched.text));
   });
 
   it("leaves an ASCII workflow under the cap byte-identical", () => {
     const source = `name: ci\non:\n  push:\njobs:\n  build:\n    steps:\n      - uses: actions/checkout@v4\n`;
-    expect(truncateForDispatch(source)).toBe(source);
+    const dispatched = truncateForDispatch(source);
+    expect(dispatched.text).toBe(source);
+    expect(dispatched.truncated).toBe(false);
+    expect(dispatched.originalBytes).toBe(countBytes(source));
   });
 
   it("never splits a surrogate pair when it does cut", () => {
     const source = "🙂".repeat(MAX_INPUT_BYTES); // 524,288 bytes ≫ cap
     const dispatched = truncateForDispatch(source);
-    expect(countBytes(dispatched)).toBeLessThanOrEqual(MAX_INPUT_BYTES);
+    const text = dispatched.text;
+    expect(countBytes(text)).toBeLessThanOrEqual(MAX_INPUT_BYTES);
     // No lone high surrogates: every unit is part of a pair.
-    for (let i = 0; i < dispatched.length; i += 1) {
-      const code = dispatched.charCodeAt(i);
+    for (let i = 0; i < text.length; i += 1) {
+      const code = text.charCodeAt(i);
       if (code >= 0xd800 && code <= 0xdbff) {
-        expect(dispatched.charCodeAt(i + 1)).toBeGreaterThanOrEqual(0xdc00);
+        expect(text.charCodeAt(i + 1)).toBeGreaterThanOrEqual(0xdc00);
       }
     }
-    expect(dispatched).toBe("🙂".repeat(dispatched.length / 2));
+    expect(text).toBe("🙂".repeat(text.length / 2));
+    expect(dispatched.originalBytes).toBe(countBytes(source));
+    expect(dispatched.truncated).toBe(true);
   });
 });

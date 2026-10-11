@@ -83,9 +83,9 @@ seam at their own boundary.
 |---|---|
 | `types.ts` | Zero-runtime-import types + the worker protocol: `ClassifiedUses`, `Resolution`, `Finding`, `GrantTable`, `ToolMetrics`, `WorkerInputPayload`/`WorkerOutputPayload` |
 | `constants.ts` | `MAX_INPUT_BYTES` 262,144 · `MAX_USES_SCAN` 2,000 · `MAX_RESOLVES_PER_RUN` 48 · `MAX_RESOLVE_CONCURRENCY` 4 · `RESOLVE_TIMEOUT_MS` 8,000 · `RESOLVE_BUDGET_MS` 25,000 · `RATE_LIMIT_RESERVE` 2 · `RESOLVE_NEGATIVE_TTL_MS` 60,000 · `RESOLVE_DEBOUNCE_MS` 500 · `WATCHDOG_MS` 1,500 · `WORKER_DEADLINE_MS` 1,000 · `SYNC_DEADLINE_MS` 800 · `ANALYZE_TIMEOUT_ERROR` · `EMPTY_METRICS` · `DEFAULT_RATE_LIMIT` |
-| `textMetrics.ts` | `countBytes` / `countWords` / `countLines` / `measureText` / `lineOfOffset` / `truncateToCap` / **`truncateForDispatch`** — the byte-accurate dispatch cap |
+| `textMetrics.ts` | `countBytes` / `countWords` / `countLines` / `measureText` / `lineOfOffset` / `truncateToCap` / **`truncateForDispatch`** — the byte-accurate dispatch cap, returning the capped text **plus** the original byte count and `truncated` verdict so the cap never hides the input's real size |
 | `yamlParse.ts` | `yamlParse`, `parseWorkflow`, `parsePermissionBlock` — the offline parse with the `uses:` scan cap and a `ParseErrorValue` instead of a throw |
-| `classify.ts` | `classifyUses`, `classifyOne`, `splitRemoteRef`, `isMovingRef`, `isLocalPath`, `isDockerRef`, `summarizeClasses` — the eight `uses:` classes |
+| `classify.ts` | `classifyUses`, `classifyOne`, `splitRemoteRef`, `isMovingRef`, `isLocalPath`, `isDockerRef`, `summarizeClasses` — the six `uses:` classes (`sha40` · `sha256` · `remoteRef` · `local` · `docker` · `invalid`) |
 | `permissionAudit.ts` | `permissionAudit`, `jobAnchor`, `TOKEN_COUPLING_SCOPES` (re-exports `parsePermissions`) |
 | `grantTable.ts` | `buildGrantTable`, `effectiveJobGrants`, `expandBlock`, `describeGrant`, `scopeSemantics`, `PERMISSION_SCOPES`, `parsePermissions` |
 | `injectionDetect.ts` | `injectionDetect`, `injectionFindings`, `findExpressions`, `tokenizeExpression`, `isSafeContext`, `matchUntrustedContext`, `UNTRUSTED_CONTEXTS` |
@@ -108,6 +108,10 @@ seam at their own boundary.
 - **Zero egress on the default path.** `autoResolve` defaults to `false`; the
   first paint, typing and computing make **zero** external requests, asserted in
   the default CI path by `e2e/visual.spec.ts`.
+- **Fonts are the one build-time exception, and they are not runtime egress.**
+  Inter and JetBrains Mono are pulled by `next/font` at **build** time and
+  self-hosted as same-origin `woff2`, so at runtime the fonts are ordinary
+  first-party responses — nothing reaches a third-party font host (BAR §5.2).
 - **The default-path guard asserts that nothing leaves the origin.** Its
   allow-list is empty, so if anything but a same-origin request appears the e2e
   journeys fail. The CSP in `next.config.ts` separately **declares**
@@ -169,11 +173,11 @@ Engineering rules that are binding, not aspirational, live in `AGENTS.md`:
 |---|---|
 | `npm run typecheck` | 0 errors |
 | `npm run lint` | 0 problems |
-| `npm test` | 21 suites · 350 passed, 1 skipped (live oracle) |
-| `npm run test:coverage` | functions 96.9% · statements 92.8% · branches 81.7% · lines 96.0% (all above thresholds) |
+| `npm test` | 22 suites · 380 passed, 1 skipped (live oracle) |
+| `npm run test:coverage` | functions 96.9% · statements 93.3% · branches 82.4% · lines 96.0% (all above thresholds) |
 | `npm run build` | First Load JS on `/tools/anchorflow` = **180 kB** (20 kB under budget) |
-| `npm run test:e2e` | 4 spec files · 42 passed, 2 skipped (pixel baselines) |
-| `npm run bench` | Phase A median 13–17 ms (1k) / 55–64 ms (5k) / 103–136 ms (3× cap) |
+| `npm run test:e2e` | 4 spec files · 43 passed, 2 skipped (pixel baselines) |
+| `npm run bench` | Phase A median 14.7–16.9 ms (1k) / 62.4–68.6 ms (5k) / 114.3–125.0 ms (3× cap) |
 
 Details and honest remaining gaps: `BENCHMARKS.md` and `QUALITY_REPORT.md`.
 Live-oracle orchestration: `.github/workflows/oracle.yml`. Release steps:

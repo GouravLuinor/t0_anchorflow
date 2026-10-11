@@ -41,6 +41,20 @@ export type ReportBody = Omit<WorkerOutputPayload, "id" | "phase">;
 export interface AnalyzeOptions {
   /** Injectable clock for deterministic tests (defaults to performance.now). */
   now?: () => number;
+  /**
+   * Byte length of the text BEFORE the caller's dispatch cap sliced it.
+   *
+   * Supplied by the WORKER path, whose payload crosses a structured-clone
+   * boundary and is therefore capped at `MAX_INPUT_BYTES` (the hook posts the
+   * capped text plus this count). Absent on the MAIN-THREAD FALLBACK, which
+   * hands over the full source — nothing crosses a boundary there, and
+   * `truncateToCap` derives the same numbers itself.
+   *
+   * Either way the report is identical: `metrics.byteCount` is the TRUE
+   * original size and `metrics.truncated` is its verdict (SPEC §9 AC-13), so
+   * the two engines can never disagree on an oversize paste.
+   */
+  originalByteCount?: number;
 }
 
 // `EMPTY_METRICS` and `ANALYZE_TIMEOUT_ERROR` live in `constants.ts` (types +
@@ -69,6 +83,7 @@ export {
   countLines,
   countWords,
   measureText,
+  truncateForDispatch,
   truncateToCap,
 } from "./textMetrics";
 export type { Truncation } from "./textMetrics";
@@ -85,13 +100,22 @@ export function analyzeLocal(
   const clock = options.now ?? (() => performance.now());
   const t0 = clock();
 
-  // 1. Cap the input on a code-point boundary; `originalBytes` is what the
-  //    metrics report, so the cap never hides the real input size.
-  const truncated = truncateToCap(source, MAX_INPUT_BYTES);
-  const counts = measureText(truncated.text);
+  // 1. Cap the input on a code-point boundary. The analyzer can arrive with an
+  //    ALREADY-capped text: the worker dispatch is sliced at MAX_INPUT_BYTES to
+  //    bound the structured-clone payload, and it reports the true original
+  //    size in `originalByteCount`. The main-thread fallback sends the full
+  //    source, so `truncateToCap` answers "uncut" and supplies the size itself.
+  //    Both routes therefore land on the SAME byteCount + truncated flag —
+  //    which is the whole point: a cap must never hide how big the input was.
+  const capped = truncateToCap(source, MAX_INPUT_BYTES);
+  const originalByteCount = options.originalByteCount ?? capped.originalBytes;
+  // The flag describes the ORIGINAL text, not the slice: the sliced text is at
+  // most the cap by construction, so it can never answer this one.
+  const truncated = capped.truncated || originalByteCount > MAX_INPUT_BYTES;
+  const counts = measureText(capped.text);
 
   // 2. Parse structurally. Malformed YAML degenerates to an error envelope.
-  const parsed = parseWorkflow(truncated.text);
+  const parsed = parseWorkflow(capped.text);
   if (!parsed.ok) {
     return {
       ok: false,
@@ -105,8 +129,8 @@ export function analyzeLocal(
       metrics: {
         ...EMPTY_METRICS,
         ...counts,
-        byteCount: truncated.originalBytes,
-        truncated: truncated.truncated,
+        byteCount: originalByteCount,
+        truncated,
         parseTimeMs: elapsed(clock, t0),
       },
       rateLimit: { ...DEFAULT_RATE_LIMIT },
@@ -118,8 +142,8 @@ export function analyzeLocal(
 
   // 4. The no-resolution rewrite is a byte-identical NO-OP (AC-2); the diff of
   //    it is therefore empty until Phase B supplies resolutions (AC-9).
-  const rewrittenYaml = yamlRewrite(truncated.text, []);
-  const diff = unifiedUsesDiff(truncated.text, rewrittenYaml);
+  const rewrittenYaml = yamlRewrite(capped.text, []);
+  const diff = unifiedUsesDiff(capped.text, rewrittenYaml);
 
   const parseTimeMs = elapsed(clock, t0);
 
@@ -146,8 +170,8 @@ export function analyzeLocal(
     metrics: {
       ...EMPTY_METRICS,
       ...counts,
-      byteCount: truncated.originalBytes,
-      truncated: truncated.truncated,
+      byteCount: originalByteCount,
+      truncated,
       usesCount: uses.length,
       usesSeen: parsed.model.usesCap.seen,
       usesScanned: parsed.model.usesCap.scanned,

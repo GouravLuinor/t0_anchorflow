@@ -15,6 +15,9 @@
 // dispatch cap and the analyze cap are ONE implementation, unit-testable
 // without a DOM: the gate is `countBytes`, never `String.length`, because a
 // CJK text is ~3 bytes per UTF-16 unit and would otherwise sail past the cap.
+// It returns the whole `Truncation` — text, `originalBytes`, `truncated` —
+// because the dispatch payload has to carry the true size across the
+// structured-clone boundary, not just the capped slice.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { MAX_INPUT_BYTES } from "./constants";
@@ -87,14 +90,23 @@ export function truncateToCap(
 }
 
 /**
- * The text a dispatch is allowed to carry: the same byte cap the analysis
- * applies, cut on a code-point boundary. Gating on `String.length` (UTF-16
- * units) would under-trigger on multibyte text — `"漢"` is 1 unit but 3 bytes
- * — and slicing by index could split a surrogate pair in half, so the hook
- * that posts into the worker uses THIS, never its own slice.
+ * What a dispatch is allowed to carry: the same byte cap the analysis applies,
+ * cut on a code-point boundary, PLUS the `originalBytes` / `truncated` verdict
+ * the analysis needs. Gating on `String.length` (UTF-16 units) would
+ * under-trigger on multibyte text — `"漢"` is 1 unit but 3 bytes — and slicing
+ * by index could split a surrogate pair in half, so the hook that posts into
+ * the worker uses THIS, never its own slice.
+ *
+ * The whole `Truncation` is returned, not just the text: the caller MUST post
+ * `originalByteCount` alongside the capped text, or `analyzeLocal` would see an
+ * already-sliced 262,144-byte string and report THAT as the input size — the cap
+ * hiding how large the input really was (SPEC §9 AC-13). Dropping the count here
+ * is what made the worker and the main-thread fallback disagree on an oversize
+ * paste; returning the verdict is what makes the payload self-describing while
+ * staying bounded at the cap.
  */
-export function truncateForDispatch(source: string): string {
-  return truncateToCap(source, MAX_INPUT_BYTES).text;
+export function truncateForDispatch(source: string): Truncation {
+  return truncateToCap(source, MAX_INPUT_BYTES);
 }
 
 /** Line (1-based) of a source offset — the `# line N` annotation in the UI. */

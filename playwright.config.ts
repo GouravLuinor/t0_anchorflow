@@ -13,9 +13,15 @@ import { defineConfig, devices } from "@playwright/test";
  * Overrides for local iteration only:
  *   - PW_DEV=1            → boot `next dev` instead (fast to start, but slow
  *                          first-compile here; use for quick debugging).
- *   - reuseExistingServer → if a 3004 server (dev or prod) is already up it is
- *                          adopted, so `npm run start && npm run test:e2e` runs
- *                          the production build with near-zero overhead.
+ *
+ * `reuseExistingServer` is FALSE, always, locally as well as in CI. Adopting
+ * whatever already answers on 3004 lets an ORPHAN `next-server` (a dev server
+ * left over from another session, a stale standalone from an earlier build)
+ * serve the suite: the green would then describe the old artifact rather than
+ * the freshly-built one this config produces, which is a false pass, not a
+ * shortcut. With reuse disabled, Playwright refuses to start while the port is
+ * occupied — a loud, deterministic failure naming the port — and every run
+ * proves the artifact it just built.
  */
 export default defineConfig({
   testDir: "./e2e",
@@ -46,7 +52,11 @@ export default defineConfig({
       ? "npm run dev"
       : "npm run build && rm -rf .next/standalone/public .next/standalone/.next/static && cp -r public .next/standalone/public && cp -r .next/static .next/standalone/.next/static && PORT=3004 HOSTNAME=0.0.0.0 node .next/standalone/server.js",
     url: "http://127.0.0.1:3004",
-    reuseExistingServer: !process.env.CI,
+    // Never adopt a listener that is already on 3004: the suite must measure
+    // the standalone artifact THIS config builds and boots. Playwright fails
+    // the launch with "port is already used" when a stale server holds it, so
+    // the failure is loud and reproducible rather than a silent reuse.
+    reuseExistingServer: false,
     timeout: 180_000,
   },
 });

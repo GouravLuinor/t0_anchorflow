@@ -8,6 +8,7 @@ import {
   countWords,
   isOverDeadline,
   measureText,
+  truncateForDispatch,
   truncateToCap,
 } from "../analyze";
 import { sortFindings } from "../findings";
@@ -268,6 +269,78 @@ jobs:
     expect(roundTripped).toBe(rewritten);
   });
 
+  it("keeps the TRUE byte count when the WORKER path sends a capped text (AC-13)", () => {
+    // The exact slip the worker dispatch used to have: the payload crossed the
+    // structured-clone boundary already sliced at the cap, so `analyzeLocal`
+    // measured the slice and reported 262,144 bytes with `truncated: false`.
+    // `truncateForDispatch` now hands the original count through the payload
+    // and the analyzer reports it instead of measuring what it was given.
+    const big = "y".repeat(MAX_INPUT_BYTES + 1_000);
+    const dispatch = truncateForDispatch(big);
+    expect(countBytes(dispatch.text)).toBeLessThanOrEqual(MAX_INPUT_BYTES);
+
+    const worker = analyzeLocal(dispatch.text, {
+      originalByteCount: dispatch.originalBytes,
+    });
+    expect(worker.metrics.byteCount).toBe(MAX_INPUT_BYTES + 1_000);
+    expect(worker.metrics.byteCount).toBeGreaterThan(
+      countBytes(dispatch.text)
+    );
+    expect(worker.metrics.truncated).toBe(true);
+    // Everything else still describes the capped analysis, not the original.
+    expect(worker.metrics.characterCount).toBe(dispatch.text.length);
+  });
+
+  it("the WORKER path and the MAIN-THREAD fallback report identical metrics", () => {
+    // The main-thread fallback hands over the FULL source (nothing crosses a
+    // boundary on that path) and the worker path sends the capped slice plus
+    // the original byte count. Both must land on the same report, byte counts
+    // and truncated flag included — otherwise the two engines disagree and the
+    // degraded path looks like a different instrument.
+    const big = "z".repeat(MAX_INPUT_BYTES + 12_345);
+    const dispatch = truncateForDispatch(big);
+
+    const fallback = analyzeLocal(big);
+    const worker = analyzeLocal(dispatch.text, {
+      originalByteCount: dispatch.originalBytes,
+    });
+
+    expect({ ...worker.metrics, parseTimeMs: 0 }).toEqual({
+      ...fallback.metrics,
+      parseTimeMs: 0,
+    });
+    expect(worker.metrics.byteCount).toBe(MAX_INPUT_BYTES + 12_345);
+    expect(worker.metrics.truncated).toBe(true);
+    expect(worker.uses).toEqual(fallback.uses);
+    expect(worker.rewrittenYaml).toBe(fallback.rewrittenYaml);
+    expect(worker.findings).toEqual(fallback.findings);
+    expect(worker.ok).toBe(fallback.ok);
+  });
+
+  it("never lets a carried count hide an over-cap text (defensive)", () => {
+    // A payload whose `source` is over the cap is truncated whatever count it
+    // claims; the flag must never come back false while the text exceeds it.
+    const body = analyzeLocal("q".repeat(MAX_INPUT_BYTES + 500), {
+      originalByteCount: 10,
+    });
+    expect(body.metrics.truncated).toBe(true);
+    expect(body.metrics.byteCount).toBe(10);
+    expect(countBytes(body.rewrittenYaml ?? "")).toBeLessThanOrEqual(
+      MAX_INPUT_BYTES
+    );
+  });
+
+  it("keeps the original byte count on the malformed-YAML worker path too", () => {
+    const dispatch = truncateForDispatch("jobs:\n\tb: 1\n".repeat(40_000));
+    expect(dispatch.truncated).toBe(true);
+    const body = analyzeLocal(dispatch.text, {
+      originalByteCount: dispatch.originalBytes,
+    });
+    expect(body.ok).toBe(false);
+    expect(body.metrics.byteCount).toBe(dispatch.originalBytes);
+    expect(body.metrics.truncated).toBe(true);
+  });
+
   it("settles a malformed input as an error VALUE, never a throw", () => {
     const body = analyzeLocal("jobs:\n\tb: 1\n");
     expect(body.ok).toBe(false);
@@ -293,6 +366,24 @@ jobs:
       parseTimeMs: 0,
     });
     expect(first.rewrittenYaml).toBe(second.rewrittenYaml);
+  });
+
+  it("stays byte-identical on the capped worker dispatch, run after run", () => {
+    // Determinism must survive the new payload shape, not just the direct one:
+    // the same capped text + the same original byte count, analyzed twice, has
+    // to serialize identically (parseTimeMs aside — it is a measurement).
+    const big = "w".repeat(MAX_INPUT_BYTES + 7_321);
+    const dispatch = truncateForDispatch(big);
+    const run = () =>
+      analyzeLocal(dispatch.text, {
+        now: () => 42,
+        originalByteCount: dispatch.originalBytes,
+      });
+    expect(run()).toEqual(run());
+
+    // And the full-source (main-thread fallback) route on the same paste.
+    const fallback = () => analyzeLocal(big, { now: () => 42 });
+    expect(fallback()).toEqual(fallback());
   });
 
   it("measures time against an injected clock", () => {
