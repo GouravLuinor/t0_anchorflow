@@ -65,9 +65,9 @@ describe("analyzeResolve — the C1 merge invariant", () => {
     moving: true,
   };
 
-  it("takes the Phase-A report and returns the FULL envelope", () => {
+  it("takes the Phase-A report and returns the FULL envelope", async () => {
     const phaseA = phaseAWith({ findings: [offlineFinding] });
-    const merged = analyzeResolve(phaseA);
+    const merged = await analyzeResolve(phaseA);
 
     expect(merged.uses).toEqual(phaseA.uses);
     expect(merged.permissions).toBe(phaseA.permissions);
@@ -79,46 +79,46 @@ describe("analyzeResolve — the C1 merge invariant", () => {
     expect(Object.keys(merged).sort()).toEqual(Object.keys(phaseA).sort());
   });
 
-  it("preserves the offline findings, never blanking them", () => {
-    const merged = analyzeResolve(
+  it("preserves the offline findings, never blanking them", async () => {
+    const merged = await analyzeResolve(
       phaseAWith({ findings: [offlineFinding], permissions: grantTable })
     );
     expect(merged.findings).toContainEqual(offlineFinding);
     expect(merged.permissions).toEqual(grantTable);
   });
 
-  it("is defensive against a missing incoming array", () => {
+  it("is defensive against a missing incoming array", async () => {
     // A hand-edited or older Phase-A body must not wipe the offline report.
     const partial = {
       ...analyzeLocal("name: ci"),
       findings: undefined as unknown as Finding[],
     };
-    const merged = analyzeResolve(partial);
+    const merged = await analyzeResolve(partial);
     expect(Array.isArray(merged.findings)).toBe(true);
     expect(merged.findings).toEqual([]);
   });
 
-  it("keeps the Phase-A timings and adds its own resolve slice", () => {
+  it("keeps the Phase-A timings and adds its own resolve slice", async () => {
     const phaseA = phaseAWith({});
     phaseA.metrics.parseTimeMs = 12.5;
-    const merged = analyzeResolve(phaseA);
+    const merged = await analyzeResolve(phaseA);
     expect(merged.metrics.parseTimeMs).toBe(12.5);
     expect(merged.metrics.resolveTimeMs).toBeGreaterThanOrEqual(0);
   });
 
-  it("keeps ok true — a Phase-B failure never flips the offline verdict", () => {
-    const merged = analyzeResolve(phaseAWith({ ok: true }));
+  it("keeps ok true — a Phase-B failure never flips the offline verdict", async () => {
+    const merged = await analyzeResolve(phaseAWith({ ok: true }));
     expect(merged.ok).toBe(true);
   });
 
-  it("keeps the rate budget it was handed", () => {
+  it("keeps the rate budget it was handed", async () => {
     const budget = { limit: 60, remaining: 42, resetAt: 1_700_000_000 };
-    const merged = analyzeResolve(phaseAWith({ rateLimit: budget }));
+    const merged = await analyzeResolve(phaseAWith({ rateLimit: budget }));
     expect(merged.rateLimit).toEqual(budget);
   });
 
-  it("classifies nothing when the offline report has no refs (scaffold)", () => {
-    const merged = analyzeResolve(
+  it("classifies nothing when the offline report has no refs", async () => {
+    const merged = await analyzeResolve(
       phaseAWith({ uses: [remoteRef], findings: [offlineFinding] })
     );
     // Resolutions land with M2; the seam keeps `uses` from Phase A untouched.
@@ -127,8 +127,8 @@ describe("analyzeResolve — the C1 merge invariant", () => {
     expect(merged.resolutions).toEqual([]);
   });
 
-  it("honours the injected clock for determinism", () => {
-    const merged = analyzeResolve(analyzeLocal("name: ci"), { now: () => 3 });
+  it("honours the injected clock for determinism", async () => {
+    const merged = await analyzeResolve(analyzeLocal("name: ci"), { now: () => 3 });
     expect(merged.metrics.resolveTimeMs).toBe(0);
   });
 });

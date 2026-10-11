@@ -122,12 +122,26 @@ export interface WorkflowModel {
 }
 
 // ── Resolution ───────────────────────────────────────────────────────────────
+/** One hop of the resolve chain, quoted for the receipt UI. */
+export interface ResolveHop {
+  /** `GET /repos/{o}/{r}/git/ref/tags/{ref}` — the AC-12 path, never the host. */
+  endpoint: string;
+  /** The object sha this hop returned; null when it returned an error. */
+  sha: string | null;
+  /** HTTP status of this hop; 0 when the hop was never issued. */
+  httpStatus: number;
+}
+
 export interface ResolveReceipt {
   endpoint: string; // e.g. GET /repos/{o}/{r}/git/ref/tags/{ref}
   returnedSha: string; // the FINAL commit sha
   dereferencedFrom?: string; // annotated: the tag-object sha before deref
   lsRemote: string; // git ls-remote cross-check line (peeled)
   resolvedAt: string; // ISO-8601; display-only, exempt from determinism compare
+  /** Why a hop was withheld or a call failed — quoted in the findings copy. */
+  note?: string | null;
+  /** Every hop in call order, so the UI renders `<endpoint> → <sha> → <sha>`. */
+  chain?: ResolveHop[];
 }
 
 export interface Resolution {
@@ -135,6 +149,18 @@ export interface Resolution {
   resolvedSha: string | null;
   status: ResolveStatus;
   receipt: ResolveReceipt | null;
+  /** D3 — the chain's every endpoint, in call order (AC-12 receipt trail). */
+  endpointsUsed?: string[];
+  /** D3 — the final commit sha, when the chain resolved one. */
+  commitSha?: string | null;
+  /** D3 — the annotated tag's own object sha, before the dereference. */
+  tagObjectSha?: string | null;
+  /** D3 — the annotated tag's object sha, spelled the receipt's way. */
+  dereferencedFrom?: string | null;
+  /** D3 — which ref namespace the chain resolved through. */
+  refKind?: "tag" | "branch" | null;
+  /** D3 — the deciding response's HTTP status (null when cache-served). */
+  httpStatus?: number | null;
 }
 
 // ── Findings — ONE canonical array ───────────────────────────────────────────

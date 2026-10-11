@@ -1,0 +1,24 @@
+{
+  "$comment": "Real capture: GET /repos/actions/checkout/git/ref/tags/main. A branch ref the TAG namespace does not carry \u2014 this is the first hop of the branch fallback.",
+  "request": {
+    "method": "GET",
+    "path": "/repos/actions/checkout/git/ref/tags/main"
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id",
+      "content-type": "application/json; charset=utf-8",
+      "x-ratelimit-limit": "60",
+      "x-ratelimit-remaining": "59",
+      "x-ratelimit-reset": "1770270000",
+      "x-ratelimit-resource": "core"
+    },
+    "body": {
+      "message": "Not Found",
+      "documentation_url": "https://docs.github.com/rest",
+      "status": "404"
+    }
+  }
+}

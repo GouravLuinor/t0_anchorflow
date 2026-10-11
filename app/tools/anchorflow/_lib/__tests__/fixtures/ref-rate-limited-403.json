@@ -1,0 +1,24 @@
+{
+  "$comment": "Recorded hourly-limit shape: 403 WITH x-ratelimit-remaining: 0. That is the ONLY 403 the resolver labels the hourly limit; the reset is taken from x-ratelimit-reset.",
+  "request": {
+    "method": "GET",
+    "path": "/repos/actions/checkout/git/ref/tags/v4"
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id",
+      "content-type": "application/json; charset=utf-8",
+      "x-ratelimit-limit": "60",
+      "x-ratelimit-remaining": "0",
+      "x-ratelimit-reset": "1770271111",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "60"
+    },
+    "body": {
+      "message": "API rate limit exceeded for 203.0.113.10.",
+      "documentation_url": "https://docs.github.com/rest/overview/resources-in-the-rest-api#rate-limiting"
+    }
+  }
+}

@@ -21,6 +21,7 @@ import {
   formatFindings,
   sortFindings,
 } from "../_lib/findings";
+import { RATE_LIMIT_RESERVE } from "../_lib/constants";
 import { effectiveJobGrants } from "../_lib/grantTable";
 import { lineOfOffset } from "../_lib/textMetrics";
 import { useToolStore } from "../_store/useToolStore";
@@ -28,6 +29,8 @@ import type {
   ClassifiedUses,
   Finding,
   GrantTable,
+  RateLimitState,
+  Resolution,
   Severity,
   UnifiedDiff,
 } from "../_lib/types";
@@ -49,8 +52,14 @@ const SWEEP_MS = 600;
  *   5. one row per collected `uses:` with its class badge (lime = already
  *      pinned, amber = moving ref, violet = remote ref pending, rose = invalid)
  *      and its `# line N · jobs.<id>.steps[i].uses` source annotation;
- *   6. the REWRITTEN YAML — the copyable, offset-surgical output (⌘⇧C);
- *   7. the red/green unified diff, empty until refs are resolved.
+ *   6. the RATE-LIMIT BANNER (amber) when the GitHub hourly floor is hit —
+ *      never a blocker: the offline report above is still complete;
+ *   7. the RESOLUTION RECEIPTS — one per remote ref, in call order:
+ *      `<endpoint> → <tag-object-sha> → <commit-sha>`, its `ls-remote`
+ *      cross-check line and its resolvedAt, all mono machine data;
+ *   8. the REWRITTEN YAML — the copyable, offset-surgical output (⌘⇧C),
+ *      repainted pinned once refs resolve;
+ *   9. the red/green unified diff, empty until refs are resolved.
  *
  * With no resolutions the rewrite is a byte-identical NO-OP, so the diff reads
  * "No changes yet — resolve refs to pin" and the rewritten YAML is exactly the
@@ -69,6 +78,8 @@ export function DiagnosticPane() {
   const isProcessing = useToolStore((s) => s.isProcessing);
   const errorMessage = useToolStore((s) => s.errorMessage);
   const isWorkerAvailable = useToolStore((s) => s.isWorkerAvailable);
+  const rateLimit = useToolStore((s) => s.rateLimit);
+  const resolutions = useToolStore((s) => s.report.resolutions);
   const source = useToolStore((s) => s.source);
 
   const [copied, setCopied] = React.useState(false);
@@ -100,6 +111,16 @@ export function DiagnosticPane() {
   };
 
   const hasOutput = Boolean(rewrittenYaml) && !errorMessage;
+
+  /** How many refs Phase B actually pinned — drives the output section copy. */
+  const resolvedPins = React.useMemo(
+    () =>
+      resolutions.filter(
+        (resolution) =>
+          resolution.status === "resolved" && Boolean(resolution.commitSha)
+      ).length,
+    [resolutions]
+  );
 
   return (
     <div className="flex h-full min-h-[400px] flex-col overflow-hidden bg-surface-base/30 lg:min-h-0">
@@ -175,7 +196,17 @@ export function DiagnosticPane() {
               <FindingsReport findings={findings} source={source} />
               <GrantTableView grants={permissions} />
               <UsesClassification uses={uses} source={source} />
-              <RewrittenOutput rewrittenYaml={rewrittenYaml ?? ""} sweeping={sweeping} />
+              <RateLimitBanner budget={rateLimit} />
+              <ResolutionReceipts
+                resolutions={resolutions}
+                pinnedCount={resolvedPins}
+                source={source}
+              />
+              <RewrittenOutput
+                rewrittenYaml={rewrittenYaml ?? ""}
+                sweeping={sweeping}
+                pinnedCount={resolvedPins}
+              />
               <DiffView diff={diff} />
             </div>
           </div>
@@ -198,6 +229,190 @@ export function DiagnosticPane() {
       </div>
     </div>
   );
+}
+
+// ── Rate-limit banner + resolution receipts ──────────────────────────────────
+
+/**
+ * The amber "we stopped, not a blocker" banner (ARCH §8): shown when the
+ * optimistic ledger has reached the reserve floor. It always carries the
+ * friendly copy — the offline report above is still complete — so a rate
+ * limit never looks like a broken tool.
+ */
+function RateLimitBanner({ budget }: { budget: RateLimitState }) {
+  const [now] = React.useState(() => Date.now());
+  const limited = budget.remaining <= RATE_LIMIT_RESERVE;
+  if (!limited) return null;
+
+  const reset =
+    budget.resetAt > 0
+      ? `resets in ${countdown(budget.resetAt, now)}`
+      : "resets when the next hourly window opens";
+
+  return (
+    <section
+      role="status"
+      aria-label="GitHub API rate limit"
+      data-testid="rate-limit-banner"
+      data-remaining={budget.remaining}
+      className="border-b border-surface-border bg-brand-amber/10 px-4 py-2.5"
+    >
+      <p className="flex flex-wrap items-baseline gap-x-2 text-xs leading-relaxed text-brand-amber">
+        <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <strong className="font-medium">
+          GitHub&apos;s hourly API limit is reached
+        </strong>
+        <span className="font-mono text-[10px] tabular-nums">
+          {budget.remaining} of {budget.limit} left · {reset}
+        </span>
+      </p>
+      <p className="pt-1 text-xs leading-relaxed text-zinc-300">
+        Nothing was rewritten. The offline report above is still complete —
+        findings, permissions and the uses classification are untouched — so
+        re-run &ldquo;Resolve &amp; pin&rdquo; after the window resets.
+      </p>
+    </section>
+  );
+}
+
+/** `3m 12s` from an absolute reset, counted against `nowMs`. */
+function countdown(resetAt: number, nowMs: number): string {
+  const seconds = Math.max(0, Math.round((resetAt - nowMs) / 1000));
+  const minutes = Math.floor(seconds / 60);
+  if (minutes === 0) return `${seconds % 60}s`;
+  const rest = seconds % 60;
+  return `${minutes}m ${rest}s`;
+}
+
+/**
+ * The receipts: one block per remote ref, in the source order Phase A gave.
+ * A resolved ref renders BOTH hops —
+ * `GET /repos/o/r/git/ref/tags/v9.12.0 → 85b44e09… → fc7eed08…` — which is the
+ * proof that the annotated tag was dereferenced to the commit it names, plus
+ * the reproducible `git ls-remote` cross-check line and the resolvedAt stamp.
+ * An unresolved ref names the endpoint that stopped it, never a silent drop.
+ */
+function ResolutionReceipts({
+  resolutions,
+  pinnedCount,
+  source,
+}: {
+  resolutions: Resolution[];
+  pinnedCount: number;
+  source: string;
+}) {
+  if (resolutions.length === 0) return null;
+
+  return (
+    <section
+      aria-label="Resolution receipts"
+      className="border-b border-surface-border"
+    >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pt-3 pb-2">
+        <h3 className="font-mono text-[10px] uppercase tracking-wider text-zinc-400">
+          Resolution receipts
+        </h3>
+        <span className="font-mono text-[10px] tabular-nums text-zinc-500">
+          {pinnedCount} of {resolutions.length} pinned
+        </span>
+      </div>
+
+      <ul data-testid="receipt-list" className="space-y-1.5 px-4 pb-3">
+        {resolutions.map((resolution) => {
+          const receipt = resolution.receipt;
+          const uses = resolution.ref;
+          const status = resolution.status;
+          const chain = receipt?.chain ?? [];
+          return (
+            <li
+              key={uses.id}
+              data-testid="receipt-item"
+              data-status={status}
+              data-ref={`${uses.owner}/${uses.repo}@${uses.ref}`}
+              className="rounded border border-surface-border bg-surface-subtle/40 px-3 py-2"
+            >
+              <div className="flex flex-wrap items-baseline gap-x-2 font-mono text-[11px] leading-relaxed">
+                <span className="text-zinc-200">
+                  {uses.owner}/{uses.repo}
+                  {uses.subpath ? `/${uses.subpath}` : ""}
+                  {uses.ref ? `@${uses.ref}` : ""}
+                </span>
+                {status === "resolved" ? (
+                  <span className="inline-flex items-center gap-1 rounded border border-brand-lime/40 bg-brand-lime/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-brand-lime">
+                    pinned
+                  </span>
+                ) : status === "unknown-ref" ? (
+                  <span className="inline-flex items-center gap-1 rounded border border-brand-rose/40 bg-brand-rose/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-brand-rose">
+                    unknown ref
+                  </span>
+                ) : status === "rate-limited" ? (
+                  <span className="inline-flex items-center gap-1 rounded border border-brand-amber/40 bg-brand-amber/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-brand-amber">
+                    not resolved
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded border border-surface-border bg-surface-subtle px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-zinc-400">
+                    {status}
+                  </span>
+                )}
+                <span className="ml-auto font-mono text-[10px] text-zinc-500">
+                  #{lineOfOffset(source, uses.start)}
+                </span>
+              </div>
+
+              {/* The chain: one arrow per hop, both hops when annotated. */}
+              <p
+                data-testid="receipt-chain"
+                className="mt-1 break-all font-mono text-[10px] leading-relaxed text-zinc-400"
+              >
+                {chain.length === 0
+                  ? "no API call was made for this ref"
+                  : chain
+                      .map(
+                        (hop) =>
+                          `${hop.endpoint}${
+                            hop.sha ? ` → ${shortSha(hop.sha)}` : ""
+                          }${
+                            hop.httpStatus && hop.sha
+                              ? ` (${hop.httpStatus})`
+                              : ""
+                          }`
+                      )
+                      .join("  →  ")}
+              </p>
+
+              {resolution.commitSha ? (
+                <p className="mt-1 font-mono text-[11px] text-zinc-200">
+                  {resolution.commitSha}
+                </p>
+              ) : null}
+
+              <p className="pt-1 text-xs leading-relaxed text-zinc-400">
+                {resolution.commitSha
+                  ? "The pinned SHA is a point-in-time snapshot: the tag it replaced can still move, so re-resolve before a release to catch drift."
+                  : `${receipt?.note ?? "This ref was not resolved."} It is still not pinned to a SHA, and the offline report above is still complete — findings, permissions and the uses classification are untouched.`}
+              </p>
+
+              <p className="flex flex-wrap gap-x-3 pt-1 font-mono text-[10px] text-zinc-500">
+                <span data-testid="receipt-resolved-at">
+                  resolvedAt {receipt?.resolvedAt ?? "—"}
+                </span>
+                {receipt?.lsRemote ? (
+                  <span className="break-all">
+                    ls-remote {receipt.lsRemote}
+                  </span>
+                ) : null}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+/** `85b44e09…` — a sha short enough to read, long enough to be unambiguous. */
+function shortSha(sha: string): string {
+  return sha.length > 12 ? `${sha.slice(0, 12)}…` : sha;
 }
 
 // ── Findings report ─────────────────────────────────────────────────────────
@@ -681,9 +896,11 @@ function SummaryCell({
 function RewrittenOutput({
   rewrittenYaml,
   sweeping,
+  pinnedCount,
 }: {
   rewrittenYaml: string;
   sweeping: boolean;
+  pinnedCount: number;
 }) {
   return (
     <section
@@ -695,7 +912,9 @@ function RewrittenOutput({
           Rewritten YAML
         </h3>
         <span className="font-mono text-[10px] text-zinc-500">
-          byte-identical until refs resolve
+          {pinnedCount > 0
+            ? `${pinnedCount} ref${pinnedCount === 1 ? "" : "s"} pinned to SHAs`
+            : "byte-identical until refs resolve"}
         </span>
       </div>
       <div className="relative">

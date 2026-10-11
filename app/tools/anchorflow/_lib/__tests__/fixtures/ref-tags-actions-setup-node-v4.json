@@ -1,0 +1,26 @@
+{
+  "$comment": "Real capture: GET /repos/actions/setup-node/git/ref/tags/v4 \u2014 a floating major, so a `moving` remoteRef that still resolves.",
+  "request": {
+    "method": "GET",
+    "path": "/repos/actions/setup-node/git/ref/tags/v4"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id",
+      "content-type": "application/json; charset=utf-8",
+      "x-ratelimit-limit": "60",
+      "x-ratelimit-remaining": "59",
+      "x-ratelimit-reset": "1770270000",
+      "x-ratelimit-resource": "core"
+    },
+    "body": {
+      "ref": "refs/tags/v4",
+      "object": {
+        "sha": "49933ea5288caeca8642d1e84afbd3f7d6820020",
+        "type": "commit"
+      }
+    }
+  }
+}

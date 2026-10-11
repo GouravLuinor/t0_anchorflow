@@ -1,0 +1,30 @@
+{
+  "$comment": "Recorded from GET https://api.github.com/repos/pnpm/pnpm/git/ref/tags/v9.12.0. An ANNOTATED tag: object.type === 'tag', so the object sha is the TAG OBJECT and must be dereferenced (see ref-tags-pnpm-pnpm-v9.12.0-tagobject.json).",
+  "request": {
+    "method": "GET",
+    "path": "/repos/pnpm/pnpm/git/ref/tags/v9.12.0"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id",
+      "content-type": "application/json; charset=utf-8",
+      "x-ratelimit-limit": "60",
+      "x-ratelimit-remaining": "59",
+      "x-ratelimit-reset": "1770270000",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "3"
+    },
+    "body": {
+      "ref": "refs/tags/v9.12.0",
+      "node_id": "MDM6UmVmMTgwNzM2NzM0OnJlZnMvdGFncy92OS4xMi4w",
+      "url": "https://api.github.com/repos/pnpm/pnpm/git/refs/tags/v9.12.0",
+      "object": {
+        "sha": "85b44e09fb0988e3e307fa59de1cf79a525b51e9",
+        "type": "tag",
+        "url": "https://api.github.com/repos/pnpm/pnpm/tags/85b44e09fb0988e3e307fa59de1cf79a525b51e9"
+      }
+    }
+  }
+}

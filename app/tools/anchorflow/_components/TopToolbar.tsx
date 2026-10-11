@@ -1,6 +1,6 @@
 "use client";
 
-import { RotateCcw, Wand2 } from "lucide-react";
+import { LoaderCircle, Pin, RotateCcw, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -15,8 +15,13 @@ import { DEFAULT_WORKFLOW } from "../_lib/presets";
 
 /**
  * Toolbar for the workstation card. Every control carries all five interaction
- * states; the auto-resolve switch is deliberately DISABLED (the fifth state)
- * until the ref resolver ships, because today it would be a silent no-op.
+ * states.
+ *
+ * The auto-resolve switch is now LIVE (the read-only resolver shipped), but it
+ * stays OFF by default so the default path makes zero external requests
+ * (SPEC §9 AC-12). "Resolve & pin" is the explicit, quota-spending action:
+ * one dispatch, single in-flight, and never armed while the offline report is
+ * still settling.
  */
 export function TopToolbar() {
   const setSource = useToolStore((s) => s.setSource);
@@ -24,6 +29,15 @@ export function TopToolbar() {
   const setAutoResolve = useToolStore((s) => s.setAutoResolve);
   const isProcessing = useToolStore((s) => s.isProcessing);
   const reset = useToolStore((s) => s.reset);
+  const resolveStatus = useToolStore((s) => s.resolveStatus);
+  const requestResolve = useToolStore((s) => s.requestResolve);
+  const pendingRefs = useToolStore((s) => s.report.uses).filter(
+    (use) => use.cls === "remoteRef"
+  ).length;
+
+  const resolving = resolveStatus === "running";
+  // Nothing to spend quota on: the workflow is already pinned or has no refs.
+  const resolveDisabled = isProcessing || resolving || pendingRefs === 0;
 
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-border bg-surface-base/80 px-4 py-2.5">
@@ -48,12 +62,11 @@ export function TopToolbar() {
               id="auto-resolve-toggle"
               checked={autoResolve}
               onCheckedChange={setAutoResolve}
-              disabled
               aria-label="Auto-resolve refs against api.github.com"
             />
             <label
               htmlFor="auto-resolve-toggle"
-              className="cursor-not-allowed select-none font-mono text-[11px] text-zinc-400"
+              className="cursor-pointer select-none font-mono text-[11px] text-zinc-400"
             >
               Auto-resolve
             </label>
@@ -63,12 +76,12 @@ export function TopToolbar() {
                   tabIndex={0}
                   className="rounded font-mono text-[11px] text-brand-amber focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime/70"
                 >
-                  soon
+                  off by default
                 </span>
               </TooltipTrigger>
               <TooltipContent>
-                Ref → commit SHA resolution ships with the resolver. Nothing
-                leaves your browser until then.
+                Resolve refs to commit SHAs after every edit. Off by default:
+                the default path makes zero external requests (SPEC §9 AC-12).
               </TooltipContent>
             </Tooltip>
           </div>
@@ -89,6 +102,32 @@ export function TopToolbar() {
         )}
 
         <div className="hidden h-4 w-[1px] bg-surface-border sm:block" />
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={requestResolve}
+          disabled={resolveDisabled}
+          aria-label="Resolve every ref to a commit SHA"
+          data-testid="resolve-pin-button"
+          data-status={resolveStatus}
+          className={cn(
+            "h-8 gap-1.5 border-surface-border bg-surface-default text-xs text-zinc-300",
+            "hover:bg-surface-elevated hover:text-zinc-100 active:scale-[0.98]",
+            resolveDisabled &&
+              "disabled:cursor-not-allowed disabled:opacity-50"
+          )}
+        >
+          {resolving ? (
+            <LoaderCircle
+              className="h-3.5 w-3.5 animate-spin text-brand-lime motion-reduce:animate-none"
+              aria-hidden="true"
+            />
+          ) : (
+            <Pin className="h-3.5 w-3.5 text-brand-lime" aria-hidden="true" />
+          )}
+          {resolving ? "Resolving…" : "Resolve & pin"}
+        </Button>
 
         <Button
           variant="outline"

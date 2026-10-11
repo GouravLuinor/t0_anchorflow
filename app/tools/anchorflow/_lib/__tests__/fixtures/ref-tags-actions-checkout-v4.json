@@ -1,0 +1,26 @@
+{
+  "$comment": "Real capture: GET https://api.github.com/repos/actions/checkout/git/ref/tags/v4. A LIGHTWEIGHT tag \u2014 object.type === 'commit', so the returned sha IS the commit and the chain ends after one call.",
+  "request": {
+    "method": "GET",
+    "path": "/repos/actions/checkout/git/ref/tags/v4"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id",
+      "content-type": "application/json; charset=utf-8",
+      "x-ratelimit-limit": "60",
+      "x-ratelimit-remaining": "59",
+      "x-ratelimit-reset": "1770270000",
+      "x-ratelimit-resource": "core"
+    },
+    "body": {
+      "ref": "refs/tags/v4",
+      "object": {
+        "sha": "11d5960a326750d5838078e36cf38b85af677262",
+        "type": "commit"
+      }
+    }
+  }
+}

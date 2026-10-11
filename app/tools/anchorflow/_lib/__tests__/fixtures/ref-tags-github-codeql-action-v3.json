@@ -1,0 +1,24 @@
+{
+  "$comment": "Real capture: GET /repos/github/codeql-action/git/ref/tags/v3 \u2014 an ANNOTATED tag reached through a SUBPATH action. The URL carries only owner/repo + ref (no /init/), which is AC-12.",
+  "request": {
+    "method": "GET",
+    "path": "/repos/github/codeql-action/git/ref/tags/v3"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id",
+      "content-type": "application/json; charset=utf-8",
+      "x-ratelimit-remaining": "59",
+      "x-ratelimit-reset": "1770270000"
+    },
+    "body": {
+      "ref": "refs/tags/v3",
+      "object": {
+        "sha": "cf12ceefebab2c867b9c35d7f907e059681d37ab",
+        "type": "tag"
+      }
+    }
+  }
+}

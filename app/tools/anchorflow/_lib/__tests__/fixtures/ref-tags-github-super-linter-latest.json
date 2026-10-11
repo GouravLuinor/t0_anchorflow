@@ -1,0 +1,24 @@
+{
+  "$comment": "Real capture: GET /repos/github/super-linter/git/ref/tags/latest \u2014 a moving ALIAS that genuinely resolves, recorded like any other ref.",
+  "request": {
+    "method": "GET",
+    "path": "/repos/github/super-linter/git/ref/tags/latest"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id",
+      "content-type": "application/json; charset=utf-8",
+      "x-ratelimit-remaining": "59",
+      "x-ratelimit-reset": "1770270000"
+    },
+    "body": {
+      "ref": "refs/tags/latest",
+      "object": {
+        "sha": "985ef206aaca4d560cb9ee2af2b42ba44adc1d55",
+        "type": "commit"
+      }
+    }
+  }
+}

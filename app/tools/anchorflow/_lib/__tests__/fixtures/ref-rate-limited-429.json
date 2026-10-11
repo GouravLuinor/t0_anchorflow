@@ -1,0 +1,21 @@
+{
+  "$comment": "A rate-headless secondary-limit 429: no x-ratelimit-remaining, so the resolver honours `Retry-After` instead of labelling the hourly reset.",
+  "request": {
+    "method": "GET",
+    "path": "/repos/actions/checkout/git/ref/tags/v4"
+  },
+  "response": {
+    "status": 429,
+    "headers": {
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id",
+      "content-type": "application/json; charset=utf-8",
+      "retry-after": "12",
+      "x-ratelimit-resource": "core"
+    },
+    "body": {
+      "message": "You have exceeded a secondary rate limit. Please wait a few minutes before you try again.",
+      "documentation_url": "https://docs.github.com/rest/overview/resources-in-the-rest-api#secondary-rate-limits"
+    }
+  }
+}

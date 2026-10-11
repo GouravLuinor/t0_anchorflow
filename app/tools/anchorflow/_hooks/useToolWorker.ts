@@ -7,6 +7,8 @@ import {
   DEBOUNCE_LARGE_MS,
   DEBOUNCE_MEDIUM_MS,
   MAX_INPUT_BYTES,
+  RATE_LIMIT_RESERVE,
+  RESOLVE_BUDGET_MS,
   RESOLVE_DEBOUNCE_MS,
   SUCCESS_ANNOUNCE_DEBOUNCE_MS,
   WATCHDOG_MS,
@@ -17,11 +19,14 @@ import {
   isStaleDispatch,
   type DispatchState,
 } from "../_lib/protocol";
+import { useToolStore } from "../_store/useToolStore";
 import type {
+  FetchLike,
+  RateLimitState,
+  Resolution,
   WorkerInputPayload,
   WorkerOutputPayload,
 } from "../_lib/types";
-import { useToolStore } from "../_store/useToolStore";
 
 /**
  * Owns the Web Worker lifecycle and the debounced, phase-aware dispatch of
@@ -62,6 +67,7 @@ function debounceFor(length: number): number {
 export function useToolWorker() {
   const source = useToolStore((s) => s.source);
   const autoResolve = useToolStore((s) => s.autoResolve);
+  const resolveRequestedAt = useToolStore((s) => s.resolveRequestedAt);
 
   const applyResult = useToolStore((s) => s.applyResult);
   const setIsProcessing = useToolStore((s) => s.setIsProcessing);
@@ -197,7 +203,11 @@ export function useToolWorker() {
 
       setIsProcessing(false);
       if (payload.phase === "B") {
-        setResolveStatus("idle");
+        // The budget verdict drives the banner's tone: `limited` when the
+        // hourly floor was reached, `offline` on a network failure.
+        setResolveStatus(
+          resolveStatusFor(payload.rateLimit, payload.resolutions ?? [])
+        );
         setRateLimit(payload.rateLimit);
       }
       handleResult(payload);
@@ -357,14 +367,16 @@ export function useToolWorker() {
     clearSuccessAnnouncement,
   ]);
 
-  // Phase B — the network resolve phase. Deliberately decoupled from typing:
-  // it debounces after the last edit and is only armed on an explicit opt-in
-  // (autoResolve is off by default), so a keystroke never spends quota. It
-  // NEVER arms the terminate-watchdog; it is aborted through the worker-scope
-  // AbortController instead.
+  // ── Phase B — the network resolve phase ───────────────────────────────────
+  // Deliberately decoupled from typing: it is armed on an explicit
+  // "Resolve & pin" press, or by the autoResolve opt-in (OFF by default), and
+  // then debounced after the last edit — never per keystroke. It NEVER arms
+  // the terminate-watchdog (ARCH §4 point 2: the watchdog is armed on a Phase-A
+  // dispatch, cleared when Phase A posts, and never armed here); the in-flight
+  // fan-out is aborted through the worker-scope AbortController instead.
   useEffect(() => {
     clearResolveDebounce();
-    if (!autoResolve) {
+    if (!autoResolve && resolveRequestedAt === 0) {
       setResolveStatus("idle");
       return;
     }
@@ -374,7 +386,8 @@ export function useToolWorker() {
       const id = ++requestIdRef.current;
       dispatchRef.current = { requestId: id, lastPhaseRank: 1 };
 
-      // Never two resolves in flight: abort the previous fan-out first.
+      // Never two resolves in flight: abort the previous fan-out first, so
+      // the hourly budget is never spent twice on a superseded request.
       resolveControllerRef.current?.abort();
       const controller = new AbortController();
       resolveControllerRef.current = controller;
@@ -391,17 +404,26 @@ export function useToolWorker() {
         return;
       }
 
-      // Degraded fallback: the same Phase-B merge contract on the main thread.
+      // Degraded fallback: the SAME Phase-B merge on the main thread, with
+      // the network seam supplied HERE instead of inside the worker.
       void (async () => {
         const [{ analyzeLocal }, { analyzeResolve }] = await Promise.all([
           import("../_lib/analyze"),
           import("../_lib/compute"),
         ]);
-        const merged = analyzeResolve(analyzeLocal(inputRef.current.source), {
-          signal: controller.signal,
-        });
+        const fetchImpl: FetchLike = (url, init) => fetch(url, init);
+        const merged = await analyzeResolve(
+          analyzeLocal(inputRef.current.source),
+          {
+            fetchImpl,
+            resolve: true,
+            budget: useToolStore.getState().rateLimit,
+            signal: controller.signal,
+            deadlineMs: RESOLVE_BUDGET_MS,
+          }
+        );
         if (controller.signal.aborted) return;
-        setResolveStatus("idle");
+        setResolveStatus(resolveStatusFor(merged.rateLimit, merged.resolutions));
         setRateLimit(merged.rateLimit);
         handleResult({ ...merged, id, phase: "B" });
       })();
@@ -413,9 +435,22 @@ export function useToolWorker() {
   }, [
     source,
     autoResolve,
+    resolveRequestedAt,
     clearResolveDebounce,
     handleResult,
     setResolveStatus,
     setRateLimit,
   ]);
+}
+
+/** Phase B settled: `limited` when the hourly floor was hit, else `idle`. */
+function resolveStatusFor(
+  budget: RateLimitState,
+  resolutions: readonly Resolution[]
+): "idle" | "limited" | "offline" {
+  if (budget.remaining <= RATE_LIMIT_RESERVE) return "limited";
+  if (resolutions.some((resolution) => resolution.status === "network-error")) {
+    return "offline";
+  }
+  return "idle";
 }

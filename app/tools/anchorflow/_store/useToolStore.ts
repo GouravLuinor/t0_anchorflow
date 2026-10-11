@@ -43,6 +43,15 @@ interface ToolState {
   autoResolve: boolean;
   setAutoResolve: (autoResolve: boolean) => void;
 
+  /**
+   * Monotonic timestamp of the last explicit "Resolve & pin" press; 0 until
+   * the user asks. The hook treats a CHANGE as a one-shot trigger, so a
+   * keystroke (which changes `source`, not this) never spends quota on its
+   * own.
+   */
+  resolveRequestedAt: number;
+  requestResolve: () => void;
+
   // ── Processed output (transient) ──────────────────────────────────────────
   report: DiagnosticReport;
   resetReport: () => void;
@@ -124,6 +133,9 @@ export const useToolStore = create<ToolState>()(
       // (SPEC §9 AC-12). Resolution is opt-in and quota-aware.
       autoResolve: false,
       setAutoResolve: (autoResolve) => set({ autoResolve }),
+
+      resolveRequestedAt: 0,
+      requestResolve: () => set({ resolveRequestedAt: Date.now() }),
 
       report: EMPTY_REPORT,
       resetReport: () => set({ report: EMPTY_REPORT }),

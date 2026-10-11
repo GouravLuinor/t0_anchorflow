@@ -1,0 +1,37 @@
+{
+  "$comment": "Recorded from GET https://api.github.com/repos/pnpm/pnpm/git/tags/85b44e09fb0988e3e307fa59de1cf79a525b51e9 \u2014 the annotated-tag DEREFERENCE. Its object.sha is the COMMIT the tag finally names.",
+  "request": {
+    "method": "GET",
+    "path": "/repos/pnpm/pnpm/git/tags/85b44e09fb0988e3e307fa59de1cf79a525b51e9"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id",
+      "content-type": "application/json; charset=utf-8",
+      "x-ratelimit-limit": "60",
+      "x-ratelimit-remaining": "58",
+      "x-ratelimit-reset": "1770270000",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "4"
+    },
+    "body": {
+      "node_id": "MDM6VGFnMTgwNzM2NzM0Ojg1YjQ0ZTA5ZmIwOTg4ZTNlMzA3ZmE1OWRlMWNmNzlhNTI1YjUxZTk",
+      "sha": "85b44e09fb0988e3e307fa59de1cf79a525b51e9",
+      "tagger": {
+        "name": "Zoltan Kochan",
+        "email": "zoltan.kochan@gmail.com",
+        "date": "2025-10-07T08:09:13Z"
+      },
+      "object": {
+        "sha": "fc7eed08c5d25b7e7349863bec0e43dca4247cd0",
+        "type": "commit",
+        "url": "https://api.github.com/repos/pnpm/pnpm/commits/fc7eed08c5d25b7e7349863bec0e43dca4247cd0"
+      },
+      "tag": "v9.12.0",
+      "message": "9.12.0\n",
+      "verified": false
+    }
+  }
+}

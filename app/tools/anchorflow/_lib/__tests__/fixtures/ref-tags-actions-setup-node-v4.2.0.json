@@ -1,0 +1,26 @@
+{
+  "$comment": "Real capture: GET /repos/actions/setup-node/git/ref/tags/v4.2.0. A non-moving dotted tag that has NOT moved \u2014 the same object across captures.",
+  "request": {
+    "method": "GET",
+    "path": "/repos/actions/setup-node/git/ref/tags/v4.2.0"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id",
+      "content-type": "application/json; charset=utf-8",
+      "x-ratelimit-limit": "60",
+      "x-ratelimit-remaining": "59",
+      "x-ratelimit-reset": "1770270000",
+      "x-ratelimit-resource": "core"
+    },
+    "body": {
+      "ref": "refs/tags/v4.2.0",
+      "object": {
+        "sha": "1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a",
+        "type": "commit"
+      }
+    }
+  }
+}
