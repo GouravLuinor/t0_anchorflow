@@ -2,8 +2,7 @@
 
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { DEFAULT_RATE_LIMIT } from "../_lib/constants";
-import { EMPTY_METRICS } from "../_lib/analyze";
+import { DEFAULT_RATE_LIMIT, EMPTY_METRICS } from "../_lib/constants";
 import { DEFAULT_WORKFLOW } from "../_lib/presets";
 import type { RateLimitState, ToolMetrics, WorkerOutputPayload } from "../_lib/types";
 
@@ -18,7 +17,6 @@ export interface DiagnosticReport {
   diff: WorkerOutputPayload["diff"];
   permissions: WorkerOutputPayload["permissions"];
   findings: WorkerOutputPayload["findings"];
-  echo: string | null;
 }
 
 export interface ComputationResult extends DiagnosticReport {
@@ -97,7 +95,6 @@ const EMPTY_REPORT: DiagnosticReport = {
   diff: null,
   permissions: null,
   findings: [],
-  echo: null,
 };
 
 // Module-level so both announcement paths share one monotonic counter without
@@ -175,7 +172,6 @@ export const useToolStore = create<ToolState>()(
                   diff: result.diff ?? state.report.diff,
                   permissions: result.permissions ?? state.report.permissions,
                   findings: result.findings ?? state.report.findings,
-                  echo: result.echo ?? state.report.echo,
                 },
                 metrics: result.metrics ?? state.metrics,
                 errorMessage: null,

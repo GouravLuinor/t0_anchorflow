@@ -1,3 +1,4 @@
+import type { ToolMetrics } from "./types";
 // ─────────────────────────────────────────────────────────────────────────────
 // Anchorflow — EVERY cap / budget / deadline constant lives here, and only
 // here, so a Phase-4 grep of any name below lands on exactly one site
@@ -79,3 +80,18 @@ export const DEFAULT_RATE_LIMIT: { limit: number; remaining: number; resetAt: nu
 export const DEBOUNCE_INSTANT_MS = 0; // ≤ 5,000
 export const DEBOUNCE_MEDIUM_MS = 40; // > 5,000
 export const DEBOUNCE_LARGE_MS = 120; // > 20,000
+
+/** The zeroed metrics baseline — the shape the panes render before a report. */
+export const EMPTY_METRICS: ToolMetrics = {
+  lineCount: 0,
+  byteCount: 0,
+  usesCount: 0,
+  resolvedCount: 0,
+  parseTimeMs: 0,
+  resolveTimeMs: 0,
+  truncated: false,
+  usesScanned: 0,
+  usesCapHit: false,
+  characterCount: 0,
+  wordCount: 0,
+};

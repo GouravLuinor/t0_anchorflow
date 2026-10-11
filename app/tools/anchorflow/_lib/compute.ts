@@ -9,7 +9,9 @@
 // SCAFFOLD NOTE: Phase B currently performs the merge contract only — the
 // resolver (`_lib/refResolver.ts`, M2) is the missing piece and it will take
 // `fetchImpl` as a REQUIRED option so `_lib` never names `fetch`. Until then a
-// Phase-B dispatch is a no-op that provably preserves the offline report.
+// Phase-B dispatch is a no-op that provably preserves the offline report:
+// `rewrittenYaml` / `diff` are carried over from Phase A rather than blanked,
+// because with no resolutions the rewrite is a byte-identical NO-OP.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { DEFAULT_RATE_LIMIT } from "./constants";
@@ -54,7 +56,10 @@ export interface PhaseBOptions {
  *      canonical order (SPEC §9 AC-10). Reads are defensive: an undefined
  *      incoming array must never blank the offline report.
  *   4. `ok` = phaseA.ok             — a 404/429/offline never flips ok.
- *   5. `rewrittenYaml` / `diff`     — recomputed from the resolutions.
+ *   5. `rewrittenYaml` / `diff`     — recomputed from the resolutions (the
+ *      D3 seam: `buildRewriteEdits(source, resolutions)` + `unifiedUsesDiff`);
+ *      with no resolutions the Phase-A no-op rewrite is carried over, never
+ *      blanked.
  *   6. `metrics` = merged (Phase-A parseTimeMs kept, resolveTimeMs added).
  *   7. `rateLimit` = the post-fan-out budget.
  */
@@ -72,6 +77,14 @@ export function analyzeResolve(
   // SCAFFOLD: no resolver yet, so there are no Phase-B findings and nothing to
   // rewrite. The resolvable set is what M2 fills in; it is empty today, which
   // is why `autoResolve` (off by default) can never spend the visitor's quota.
+  //
+  // D3 seam: once resolutions exist, Phase B recomputes the derived surfaces
+  //   rewrittenYaml = yamlRewrite(source, resolutions)
+  //   diff         = unifiedUsesDiff(source, rewrittenYaml)
+  // through the SAME pure modules Phase A uses, so the two paths cannot drift.
+  // An empty resolution set makes that recomputation a byte-identical no-op,
+  // which is why carrying the Phase-A values over is equivalent — and never
+  // blanks the offline report.
   const phaseBFindings: Finding[] = [];
 
   const resolveTimeMs = Math.round((clock() - t0) * 100) / 100;
@@ -91,11 +104,10 @@ export function analyzeResolve(
     permissions: offlinePermissions,
     findings: [...offlineFindings, ...phaseBFindings],
     resolutions: [],
-    rewrittenYaml: null,
-    diff: null,
+    rewrittenYaml: phaseA.rewrittenYaml ?? null,
+    diff: phaseA.diff ?? null,
     metrics,
     rateLimit: phaseA.rateLimit ?? { ...DEFAULT_RATE_LIMIT },
-    echo: phaseA.echo ?? null,
   };
 }
 

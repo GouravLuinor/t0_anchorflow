@@ -13,9 +13,11 @@ import { test, expect, type Locator, type Page } from "@playwright/test";
  *
  * The compute pipeline is real: every keystroke dispatches to
  * `_workers/compute.worker.ts` behind a monotonic-id stale guard, and the
- * DiagnosticPane mirrors the worker's payload. Today that payload is the
- * placeholder measurement (the analyzed text plus character / word / byte /
- * line counts) — which is exactly what these journeys assert.
+ * DiagnosticPane renders the worker's payload. The payload now carries the
+ * OFFLINE HARDENER CORE: the structural `uses:` classification (per-node class
+ * badge + `# line N · jobs.<id>.steps[i].uses` source), the byte-identical
+ * rewritten YAML and the red/green diff of that rewrite. These journeys assert
+ * exactly that, alongside the shell and keyboard contracts.
  *
  * Scoping notes that keep these specs stable:
  *   - `#workstation` is the single card holding the toolbar AND both panes.
@@ -38,6 +40,11 @@ const MOD = "ControlOrMeta";
 const station = (page: Page) => page.locator("#workstation");
 const sourceInput = (page: Page) => page.locator("#tool-source-input");
 const diagnosticEcho = (page: Page) => page.getByTestId("diagnostic-echo");
+/** The per-`uses:` classification rows the D1 core renders. */
+const usesRow = (page: Page) => page.getByTestId("uses-row");
+/** The red/green unified diff section. */
+const diffSection = (page: Page) =>
+  page.locator('section[aria-label="Unified diff"]');
 
 /**
  * Controlled-React inputs only commit once the onChange → store → re-render
@@ -140,6 +147,158 @@ test.describe("Anchorflow shell journeys", () => {
     await expect(station(page).getByText("Ready")).toBeVisible({
       timeout: COMPUTE_TIMEOUT,
     });
+  });
+
+  test("the D1 core classifies every seeded uses line (AC-1 · AC-14)", async ({
+    page,
+  }) => {
+    // The seed is a real workflow with ≥1 moving ref and ≥1 remoteRef (AC-14),
+    // so the classification list is non-blank on first paint with NO network.
+    const rows = usesRow(page);
+    await expect(rows.first()).toBeVisible({ timeout: COMPUTE_TIMEOUT });
+    expect(await rows.count()).toBeGreaterThanOrEqual(8);
+
+    // A MOVING ref is highlighted amber … (@v4 is a floating major)
+    const moving = page.locator('[data-testid="uses-row"][data-moving="true"]');
+    await expect(moving).toHaveCount(3);
+    const movingRow = moving.filter({ hasText: "actions/checkout@v4" });
+    await expect(movingRow).toBeVisible();
+    await expect(movingRow).toContainText("moving");
+    await expect(movingRow).toContainText(
+      "# line",
+      { useInnerText: true }
+    );
+    await expect(movingRow).toContainText("jobs.build.steps[0].uses");
+
+    // An already-pinned SHA is lime "pinned" and never moving …
+    const pinned = page.locator('[data-testid="uses-row"][data-class="sha40"]');
+    await expect(pinned).toHaveCount(2);
+    await expect(pinned.first()).toContainText("pinned");
+    await expect(pinned.first()).toHaveAttribute("data-moving", "false");
+
+    // … a fixed dotted tag is a violet "pending" remoteRef …
+    const pending = page.locator(
+      '[data-testid="uses-row"][data-class="remoteRef"][data-moving="false"]'
+    );
+    await expect(pending).toHaveCount(1);
+    await expect(pending).toContainText("actions/setup-node@v4.2.0");
+
+    // … and local + docker are collected but never flagged for resolution.
+    await expect(
+      page.locator('[data-testid="uses-row"][data-class="local"]')
+    ).toContainText("./.github/actions/setup");
+    await expect(
+      page.locator('[data-testid="uses-row"][data-class="docker"]')
+    ).toContainText("docker://alpine:3.20");
+
+    // The job-level reusable-workflow call carries scope "job".
+    await expect(
+      page.locator('[data-testid="uses-row"]', {
+        hasText: "release.yml@main",
+      })
+    ).toContainText("jobs.release.uses");
+
+    // The classification summary counts every class (AC-9 change counter).
+    const summary = page.locator('section[aria-label="Uses classification"]');
+    await expect(summary).toContainText("8 uses");
+    await expect(summary).toContainText("pinned");
+  });
+
+  test("the rewritten YAML is byte-identical to the seed on first paint (AC-2)", async ({
+    page,
+  }) => {
+    // With no resolutions the rewrite is a NO-OP: the output must equal the
+    // editor's own text, byte for byte, comments and flow spacing included.
+    const seeded = await sourceInput(page).inputValue();
+    const rewritten = diagnosticEcho(page);
+    await expect(rewritten).toBeVisible({ timeout: COMPUTE_TIMEOUT });
+    expect(await rewritten.innerText()).toBe(seeded);
+
+    // The comment-preservation fixtures survive verbatim.
+    expect(seeded).toContain("branches: [main]     # only main");
+    expect(seeded).toContain("actions/checkout@v4   # needed for CI");
+  });
+
+  test("the diff is empty until refs resolve (AC-9 empty state)", async ({
+    page,
+  }) => {
+    await expect(diagnosticEcho(page)).toBeVisible({ timeout: COMPUTE_TIMEOUT });
+    const diff = diffSection(page);
+    await expect(diff).toBeVisible();
+    await expect(diff).toContainText("No changes yet — resolve refs to pin.");
+    await expect(page.getByTestId("diff-changed-count")).toHaveText("0 changes");
+    // The diff view itself carries no +/- lines in this state.
+    await expect(diff.locator("pre")).toHaveCount(0);
+  });
+
+  test("the rewritten-YAML copy button copies the exact pinned output", async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    const seeded = await sourceInput(page).inputValue();
+    await expect(diagnosticEcho(page)).toBeVisible({ timeout: COMPUTE_TIMEOUT });
+
+    const copyButton = station(page).getByRole("button", { name: /^copy$/i });
+    await expect(copyButton).toBeEnabled({ timeout: COMPUTE_TIMEOUT });
+    await copyButton.click();
+
+    // Tactile success toast, then the clipboard holds the rewritten YAML —
+    // byte-identical to the seeded workflow, because nothing is resolved yet.
+    await expect(page.getByText(/diagnostic output copied/i)).toBeVisible({
+      timeout: COMPUTE_TIMEOUT,
+    });
+    const clipboard = await page.evaluate(() =>
+      navigator.clipboard.readText()
+    );
+    expect(clipboard).toBe(seeded);
+    expect(clipboard).toContain("branches: [main]     # only main");
+  });
+
+  test("a pasted workflow is classified and stays a no-op rewrite", async ({
+    page,
+  }) => {
+    const workflow = [
+      "name: probe",
+      "on: push",
+      "jobs:",
+      "  build:",
+      "    steps:",
+      "      - uses: actions/checkout@v4   # needed for CI",
+      "      - uses: actions/setup-node@11bd71901bbe5b1630ceea73d27597364c9af683",
+      "      - run: echo hi",
+      "",
+    ].join("\n");
+    await fillStable(sourceInput(page), workflow);
+
+    const rows = usesRow(page);
+    await expect(rows).toHaveCount(2, { timeout: COMPUTE_TIMEOUT });
+    const moving = page.locator('[data-testid="uses-row"][data-moving="true"]');
+    await expect(moving).toHaveCount(1);
+    await expect(moving).toContainText("actions/checkout@v4");
+    await expect(moving).toContainText("jobs.build.steps[0].uses");
+    await expect(
+      page.locator('[data-testid="uses-row"][data-class="sha40"]')
+    ).toContainText("actions/setup-node@11bd71901bbe5b1630ceea73d27597364c9af683");
+
+    // Nothing resolved ⇒ the diff stays empty and the output stays identical.
+    await expect(diffSection(page)).toContainText(
+      "No changes yet — resolve refs to pin."
+    );
+    expect(await diagnosticEcho(page).innerText()).toBe(workflow);
+  });
+
+  test("a malformed workflow settles a friendly parse error (AC-1 error value)", async ({
+    page,
+  }) => {
+    await fillStable(sourceInput(page), "jobs:\n\tbuild: 1\n");
+    await expect(
+      station(page).getByText(/doesn't parse as a workflow YAML — 2:1/)
+    ).toBeVisible({ timeout: COMPUTE_TIMEOUT });
+    await expect(station(page).getByText("Analysis failed")).toBeVisible();
+    // No classification rows and no hollow echo once the parse failed.
+    await expect(usesRow(page)).toHaveCount(0);
+    await expect(diagnosticEcho(page)).toHaveCount(0);
   });
 
   test("worker round-trip: a paste is measured and mirrored back", async ({

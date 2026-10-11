@@ -42,10 +42,12 @@ export function useKeyboardShortcuts() {
       }
 
       if (key === "c" && e.shiftKey) {
-        const echo = useToolStore.getState().report.echo;
-        if (!echo) return;
+        // The derived output is the pinned YAML; with no resolutions it is the
+        // byte-identical source, so the copy is always meaningful.
+        const rewritten = useToolStore.getState().report.rewrittenYaml;
+        if (!rewritten) return;
         e.preventDefault();
-        void copyTextToClipboard(echo).then((succeeded) => {
+        void copyTextToClipboard(rewritten).then((succeeded) => {
           if (succeeded) {
             toast({ title: "Diagnostic output copied", description: "⌘⇧C" });
           } else {

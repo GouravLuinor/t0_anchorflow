@@ -25,7 +25,7 @@ import type { WorkerInputPayload, WorkerOutputPayload } from "../_lib/types";
 /**
  * Phase-A report bodies are memoized across keystrokes keyed by source text.
  * The capacity caps memory; re-insertion on access keeps hot inputs alive.
- * Oversized inputs are not cached — a 256 KiB echo is not a cheap LRU entry.
+ * Oversized inputs are not cached — a 256 KiB report is not a cheap LRU entry.
  */
 const CACHEABLE_INPUT_BYTES = 32_768;
 const reportCache = new Map<string, ReportBody>();
@@ -90,7 +90,6 @@ self.onmessage = (event: MessageEvent<WorkerInputPayload>) => {
         ...body,
         ok: false,
         fatalError: ANALYZE_TIMEOUT_ERROR,
-        echo: null,
       });
       return;
     }
@@ -117,7 +116,6 @@ self.onmessage = (event: MessageEvent<WorkerInputPayload>) => {
         ...counts,
       },
       rateLimit: { ...DEFAULT_RATE_LIMIT },
-      echo: null,
     } satisfies WorkerOutputPayload);
   }
 };

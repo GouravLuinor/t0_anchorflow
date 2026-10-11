@@ -6,10 +6,13 @@
 // leak into a component bundle through it.
 //
 // DOMAIN SEAMS: the classification / resolution / findings / permissions /
-// diff shapes below are the contract the domain agent (M1–M4) implements. Until
-// then the pipeline reports the placeholder measurements carried on
-// `ToolMetrics` + `WorkerOutputPayload.echo`, and the domain arrays ship EMPTY
-// (never `undefined`) so the merge contract holds from day one.
+// diff shapes below are the contract the domain agents (M1–M4) implement.
+// M1 (parse / classify / rewrite / diff) has LANDED — `uses`, `rewrittenYaml`
+// and `diff` are populated on the Phase-A path and the placeholder `echo`
+// mirror is RETIRED: the derived surfaces are the output. `permissions` and
+// `findings` stay empty until the M2/M3/M4 audits land, and the resolver seam
+// (`FetchLike`) stays a required option so `_lib` never names `fetch`.
+// Arrays ship EMPTY (never `undefined`) so the merge contract holds.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Classification ───────────────────────────────────────────────────────────
@@ -39,6 +42,21 @@ export interface UsesRaw {
   start: number; // scalar start offset in source
   valueEnd: number; // offset AFTER the value (past the closing quote if quoted)
   existingComment: string | null; // trailing comment text on the line, if any
+}
+
+/**
+ * Malformed-YAML diagnostics, carried as a VALUE (never a throw) so the worker
+ * can settle `fatalError` with the parser's own line and column.
+ */
+export interface ParseErrorValue {
+  /** Human reason, with eemeli's native suffix stripped. */
+  message: string;
+  /** 1-based parser line, or null when the parser gave none. */
+  line: number | null;
+  /** 1-based parser column, or null when the parser gave none. */
+  column: number | null;
+  /** Same as `message`; kept so a consumer can quote the raw reason. */
+  reason: string;
 }
 
 export interface ClassifiedUses extends UsesRaw {
@@ -160,8 +178,13 @@ export interface InjectionSink {
 
 // ── Diff ─────────────────────────────────────────────────────────────────────
 export interface UnifiedDiffLine {
+  /** `context` = unchanged · `add` = only in `after` · `del` = only in `before`. */
   kind: "context" | "add" | "del";
   text: string;
+  /** 1-based line in `before`; null for an added line. */
+  beforeLine: number | null;
+  /** 1-based line in `after`; null for a deleted line. */
+  afterLine: number | null;
 }
 
 export interface UnifiedDiff {
@@ -230,10 +253,4 @@ export interface WorkerOutputPayload {
   findings: Finding[];
   metrics: ToolMetrics;
   rateLimit: RateLimitState;
-  /**
-   * SCAFFOLD-ONLY: the analyzed text echoed back, which is what the
-   * DiagnosticPane mirrors today. Replaced by the derived output surfaces
-   * (pinned YAML / diff / findings / receipts) once the domain lands.
-   */
-  echo: string | null;
 }

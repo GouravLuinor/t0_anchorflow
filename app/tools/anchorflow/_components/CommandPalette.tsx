@@ -75,16 +75,16 @@ export function CommandPalette() {
   }, [setCommandPaletteOpen]);
 
   const handleCopy = useCallback(() => {
-    const echo = useToolStore.getState().report.echo;
-    if (!echo) {
+    const rewritten = useToolStore.getState().report.rewrittenYaml;
+    if (!rewritten) {
       toast({
         title: "Nothing to copy yet",
-        description: "Paste a workflow first — the diagnostic output mirrors it.",
+        description: "Paste a workflow first — the pinned output appears here.",
         variant: "destructive",
       });
       return;
     }
-    void copyTextToClipboard(echo).then((succeeded) => {
+    void copyTextToClipboard(rewritten).then((succeeded) => {
       if (succeeded) {
         toast({ title: "Diagnostic output copied", description: "⌘⇧C" });
       } else {

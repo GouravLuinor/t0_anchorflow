@@ -1,30 +1,30 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Anchorflow — the placeholder compute core (SCAFFOLD).
+// Anchorflow — the offline compute core (Phase A). Pure: no React, no DOM, no
+// IO, no `fetch`. The worker AND the main-thread fallback both call
+// `analyzeLocal`, so the two paths cannot drift (BAR §4.2).
 //
-// This module is the single source of semantics for the offline phase: the
-// worker AND the main-thread fallback both call `analyzeLocal`, so the two
-// paths cannot drift (BAR §4.2). It is pure — no React, no DOM, no IO, no
-// `fetch` — which is what makes it unit-testable and reusable at both
-// boundaries.
+// THE PIPELINE (PLAN §1 — M1 ships it end-to-end with resolution stubbed off):
 //
-// WHAT IT DOES TODAY: a trivial placeholder measurement. It returns the raw
-// text plus character / word / byte / line counts, with every domain array
-// empty (`uses`, `resolutions`, `findings`) and every derived surface `null`.
+//   truncate (cap, code-point boundary)
+//     → yamlParse          structural `uses:` collection + offsets
+//     → classifyUses       6 classes × 2 scopes, moving-ref rule
+//     → yamlRewrite        offset-surgical re-emit (NO-OP with no resolutions)
+//     → unifiedUsesDiff    red/green line diff of that rewrite
 //
-// WHAT THE DOMAIN AGENT ADDS (the seams, all already typed in `types.ts`):
-//   · `uses: ClassifiedUses[]`        — structural `uses:` collection + 6-class
-//                                       classification (+ 2 scopes)
-//   · `resolutions: Resolution[]`     — ref → commit SHA (behind the required
-//                                       `fetchImpl` seam; see compute.ts)
-//   · `findings: Finding[]`           — pinning / permissions / injection /
-//                                       danger-trigger / moving-ref audits
-//   · `rewrittenYaml: string | null`  — offset-surgical pinned output
-//   · `diff: UnifiedDiff | null`      — red/green unified diff of that rewrite
-//   · `permissions: GrantTable | null`— effective scope grant table
-// The envelope SHAPE is final; only the empty arrays/null surfaces fill in.
+// `findings` and `permissions` ship EMPTY / null on purpose: the pinning,
+// permission, injection and trigger AUDITS are later milestones (M2–M4) and land
+// as separate modules that read this same `WorkflowModel`.
+//
+// Malformed YAML comes back as an ERROR ENVELOPE (`ok:false` + `fatalError`
+// copy with the parser's line:column) — never a throw.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { DEFAULT_RATE_LIMIT, MAX_INPUT_BYTES } from "./constants";
+import { DEFAULT_RATE_LIMIT, EMPTY_METRICS, MAX_INPUT_BYTES } from "./constants";
+import { classifyUses } from "./classify";
+import { unifiedUsesDiff } from "./diff";
+import { parseWorkflow } from "./yamlParse";
+import { yamlRewrite } from "./rewrite";
+import { measureText, truncateToCap } from "./textMetrics";
 import type { ToolMetrics, WorkerOutputPayload } from "./types";
 
 /** Everything the worker posts except the correlation fields. */
@@ -35,134 +35,114 @@ export interface AnalyzeOptions {
   now?: () => number;
 }
 
-export const EMPTY_METRICS: ToolMetrics = {
-  lineCount: 0,
-  byteCount: 0,
-  usesCount: 0,
-  resolvedCount: 0,
-  parseTimeMs: 0,
-  resolveTimeMs: 0,
-  truncated: false,
-  usesScanned: 0,
-  usesCapHit: false,
-  characterCount: 0,
-  wordCount: 0,
-};
+// Lives in `constants.ts` so the store can seed it without pulling the parser
+// (and the eemeli `yaml` dependency) into the first-load chunk.
+export { EMPTY_METRICS } from "./constants";
 
 /** Friendly copy shared by the worker deadline self-report and the watchdog. */
 export const ANALYZE_TIMEOUT_ERROR =
   "Analysis exceeded the time budget — this workflow is too complex to process in time.";
 
-/** Counts whitespace-delimited words; an all-whitespace text has none. */
-export function countWords(text: string): number {
-  const trimmed = text.trim();
-  return trimmed ? trimmed.split(/\s+/).length : 0;
+/** Malformed-YAML copy, with the parser's own line:column and reason. */
+export function parseErrorCopy(error: {
+  message: string;
+  line: number | null;
+  column: number | null;
+}): string {
+  const where =
+    error.line !== null
+      ? `${error.line}${error.column !== null ? `:${error.column}` : ""}`
+      : "unknown position";
+  return `That doesn't parse as a workflow YAML — ${where}: ${error.message}.`;
 }
 
-/** UTF-8 byte length — what actually crosses the structured-clone boundary. */
-export function countBytes(text: string): number {
-  return new TextEncoder().encode(text).length;
-}
-
-/** Lines are newline-terminated runs; a trailing newline does not add one. */
-export function countLines(text: string): number {
-  if (!text) return 0;
-  const newlines = text.split("\n").length - 1;
-  return text.endsWith("\n") ? newlines : newlines + 1;
-}
-
-export interface Truncation {
-  text: string;
-  truncated: boolean;
-  /** Byte length of the ORIGINAL text, before slicing. */
-  originalBytes: number;
-}
-
-/**
- * Cuts the input to MAX_INPUT_BYTES on a code-point boundary (a UTF-16
- * surrogate pair is never split into a lone surrogate) while reporting the
- * original byte count — the cap never hides how big the input really was.
- */
-export function truncateToCap(text: string): Truncation {
-  const originalBytes = countBytes(text);
-  if (originalBytes <= MAX_INPUT_BYTES) {
-    return { text, truncated: false, originalBytes };
-  }
-
-  let low = 0;
-  let high = text.length;
-  // Largest prefix whose UTF-8 length is <= MAX_INPUT_BYTES.
-  while (low < high) {
-    const mid = Math.ceil((low + high) / 2);
-    if (countBytes(text.slice(0, mid)) <= MAX_INPUT_BYTES) low = mid;
-    else high = mid - 1;
-  }
-
-  let end = low;
-  // Never leave an orphaned HIGH surrogate at the cut: when the last included
-  // code unit is a high surrogate and the next one is its low partner, the
-  // slice would end mid-pair, so step back one code unit.
-  const lastIncluded = text.charCodeAt(end - 1);
-  const following = text.charCodeAt(end);
-  if (
-    lastIncluded >= 0xd800 &&
-    lastIncluded <= 0xdbff &&
-    following >= 0xdc00 &&
-    following <= 0xdfff
-  ) {
-    end -= 1;
-  }
-
-  return { text: text.slice(0, end), truncated: true, originalBytes };
-}
-
-/** Placeholder measurement of one text body — pure, deterministic, no IO. */
-export function measureText(source: string) {
-  return {
-    characterCount: source.length,
-    wordCount: countWords(source),
-    byteCount: countBytes(source),
-    lineCount: countLines(source),
-  };
-}
+// Re-exported so the existing measurement surface keeps one import site.
+export {
+  countBytes,
+  countLines,
+  countWords,
+  measureText,
+  truncateToCap,
+} from "./textMetrics";
+export type { Truncation } from "./textMetrics";
 
 /**
  * Phase A: the offline report. Zero network. Returns the FULL envelope body —
- * every field present, domain arrays empty and derived surfaces null, so the
- * M2 merge contract (`compute.ts → analyzeResolve`) already has a complete
- * Phase-A report to merge into.
+ * every field present, so the M2 merge contract (`compute.ts → analyzeResolve`)
+ * already has a complete Phase-A report to merge into.
  */
-export function analyzeLocal(source: string, options: AnalyzeOptions = {}): ReportBody {
+export function analyzeLocal(
+  source: string,
+  options: AnalyzeOptions = {}
+): ReportBody {
   const clock = options.now ?? (() => performance.now());
   const t0 = clock();
 
-  const trimmed = truncateToCap(source);
-  const counts = measureText(trimmed.text);
-  const parseTimeMs = Math.round((clock() - t0) * 100) / 100;
+  // 1. Cap the input on a code-point boundary; `originalBytes` is what the
+  //    metrics report, so the cap never hides the real input size.
+  const truncated = truncateToCap(source, MAX_INPUT_BYTES);
+  const counts = measureText(truncated.text);
 
-  const metrics: ToolMetrics = {
-    ...EMPTY_METRICS,
-    ...counts,
-    parseTimeMs,
-    truncated: trimmed.truncated,
-  };
+  // 2. Parse structurally. Malformed YAML degenerates to an error envelope.
+  const parsed = parseWorkflow(truncated.text);
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      fatalError: parseErrorCopy(parsed.error),
+      uses: [],
+      resolutions: [],
+      rewrittenYaml: null,
+      diff: null,
+      permissions: null,
+      findings: [],
+      metrics: {
+        ...EMPTY_METRICS,
+        ...counts,
+        byteCount: truncated.originalBytes,
+        truncated: truncated.truncated,
+        parseTimeMs: elapsed(clock, t0),
+      },
+      rateLimit: { ...DEFAULT_RATE_LIMIT },
+    };
+  }
+
+  // 3. Classify every collected node (6 classes × 2 scopes).
+  const uses = classifyUses(parsed.model.uses);
+
+  // 4. The no-resolution rewrite is a byte-identical NO-OP (AC-2); the diff of
+  //    it is therefore empty until Phase B supplies resolutions (AC-9).
+  const rewrittenYaml = yamlRewrite(truncated.text, []);
+  const diff = unifiedUsesDiff(truncated.text, rewrittenYaml);
+
+  const parseTimeMs = elapsed(clock, t0);
 
   return {
     ok: true,
     fatalError: null,
-    // Domain arrays ship EMPTY — never `undefined` — so the M2 merge contract
-    // below can always take them at face value.
-    uses: [],
+    uses,
     resolutions: [],
-    rewrittenYaml: null,
-    diff: null,
+    rewrittenYaml,
+    diff,
+    // M3 owns the grant table; the model already carries the raw blocks.
     permissions: null,
+    // M2/M3/M4 own the audits. D1 leaves the array empty but never absent.
     findings: [],
-    metrics,
+    metrics: {
+      ...EMPTY_METRICS,
+      ...counts,
+      byteCount: truncated.originalBytes,
+      truncated: truncated.truncated,
+      usesCount: uses.length,
+      usesScanned: parsed.model.usesCap.scanned,
+      usesCapHit: parsed.model.usesCap.capped,
+      parseTimeMs,
+    },
     rateLimit: { ...DEFAULT_RATE_LIMIT },
-    // The placeholder diagnostic surface: the analyzed text, echoed back.
-    echo: trimmed.text,
   };
+}
+
+function elapsed(clock: () => number, t0: number): number {
+  return Math.round((clock() - t0) * 100) / 100;
 }
 
 /** True when a report's own Phase-A time exceeded the given budget. */

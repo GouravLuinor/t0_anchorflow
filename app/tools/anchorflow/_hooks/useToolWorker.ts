@@ -1,10 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import {
-  ANALYZE_TIMEOUT_ERROR,
-  analyzeLocal,
-} from "../_lib/analyze";
+import { ANALYZE_TIMEOUT_ERROR } from "../_lib/analyze";
 import {
   DEBOUNCE_INSTANT_MS,
   DEBOUNCE_LARGE_MS,
@@ -14,7 +11,6 @@ import {
   SUCCESS_ANNOUNCE_DEBOUNCE_MS,
   WATCHDOG_MS,
 } from "../_lib/constants";
-import { analyzeResolve } from "../_lib/compute";
 import {
   acceptDispatch,
   INITIAL_DISPATCH_STATE,
@@ -38,7 +34,10 @@ import { useToolStore } from "../_store/useToolStore";
  *   · a 1.5s watchdog that terminates + respawns the worker and settles a
  *     friendly error (native compute cannot be interrupted);
  *   · a single `degradeToMainThread` that runs the SAME pure core on the main
- *     thread at the stricter sync deadline — no fake variant;
+ *     thread at the stricter sync deadline — no fake variant. `_lib/analyze` is
+ *     imported lazily on that path alone, so the eemeli `yaml` parser the core
+ *     needs never lands in First Load JS (only the worker chunk and the
+ *     on-demand fallback chunk carry it);
  *   · Phase B (network resolve) is watchdog-free and abortable, and is only
  *     ever dispatched when the caller asks for it (`autoResolve`, off by
  *     default), so the default path makes zero external requests.
@@ -314,27 +313,31 @@ export function useToolWorker() {
         return;
       }
 
-      // Synchronous fallback path — identical semantics via the same pure
-      // core, under the stricter sync deadline that protects UI frames.
-      try {
-        const body = analyzeLocal(inputRef.current.source);
-        if (id !== requestIdRef.current) return;
-        const result: WorkerOutputPayload = {
-          ...body,
-          id,
-          phase: "A",
-          fatalError: body.ok ? null : body.fatalError,
-        };
-        setIsProcessing(false);
-        handleResult(result);
-      } catch (err) {
-        clearSuccessAnnouncement();
-        setIsProcessing(false);
-        setErrorMessage(
-          err instanceof Error ? err.message : "Unexpected processing error"
-        );
-        announceStatus("Processing failed");
-      }
+      // Main-thread fallback path — identical semantics via the same pure
+      // core, under the stricter sync deadline that protects UI frames. The
+      // core is loaded on demand so the parser stays out of First Load JS.
+      void (async () => {
+        try {
+          const { analyzeLocal } = await import("../_lib/analyze");
+          const body = analyzeLocal(inputRef.current.source);
+          if (id !== requestIdRef.current) return;
+          const result: WorkerOutputPayload = {
+            ...body,
+            id,
+            phase: "A",
+            fatalError: body.ok ? null : body.fatalError,
+          };
+          setIsProcessing(false);
+          handleResult(result);
+        } catch (err) {
+          clearSuccessAnnouncement();
+          setIsProcessing(false);
+          setErrorMessage(
+            err instanceof Error ? err.message : "Unexpected processing error"
+          );
+          announceStatus("Processing failed");
+        }
+      })();
     }, debounceFor(source.length));
 
     return () => {
@@ -389,13 +392,19 @@ export function useToolWorker() {
       }
 
       // Degraded fallback: the same Phase-B merge contract on the main thread.
-      const merged = analyzeResolve(analyzeLocal(inputRef.current.source), {
-        signal: controller.signal,
-      });
-      if (controller.signal.aborted) return;
-      setResolveStatus("idle");
-      setRateLimit(merged.rateLimit);
-      handleResult({ ...merged, id, phase: "B" });
+      void (async () => {
+        const [{ analyzeLocal }, { analyzeResolve }] = await Promise.all([
+          import("../_lib/analyze"),
+          import("../_lib/compute"),
+        ]);
+        const merged = analyzeResolve(analyzeLocal(inputRef.current.source), {
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+        setResolveStatus("idle");
+        setRateLimit(merged.rateLimit);
+        handleResult({ ...merged, id, phase: "B" });
+      })();
     }, RESOLVE_DEBOUNCE_MS);
 
     return () => {

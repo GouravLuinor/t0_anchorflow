@@ -103,9 +103,12 @@ describe("measureText — the placeholder measurement", () => {
 describe("analyzeLocal — the full Phase-A envelope body", () => {
   const source = "name: ci\non: push\njobs: {}\n";
 
-  it("echoes the text and carries every count", () => {
+  it("returns the derived output surfaces and every count", () => {
     const body = analyzeLocal(source);
-    expect(body.echo).toBe(source);
+    // No `uses:` nodes ⇒ the rewrite is a byte-identical NO-OP (AC-2) and the
+    // diff of it is empty.
+    expect(body.rewrittenYaml).toBe(source);
+    expect(body.diff).toEqual({ changed: 0, lines: [] });
     expect(body.metrics.characterCount).toBe(source.length);
     expect(body.metrics.wordCount).toBe(6);
     expect(body.metrics.byteCount).toBe(countBytes(source));
@@ -118,9 +121,8 @@ describe("analyzeLocal — the full Phase-A envelope body", () => {
     expect(body.fatalError).toBe(null);
     expect(body.uses).toEqual([]);
     expect(body.resolutions).toEqual([]);
+    // The audits land with M2–M4; until then they are EMPTY, never undefined.
     expect(body.findings).toEqual([]);
-    expect(body.rewrittenYaml).toBeNull();
-    expect(body.diff).toBeNull();
     expect(body.permissions).toBeNull();
     expect(body.rateLimit).toEqual({ limit: 60, remaining: 60, resetAt: 0 });
     // A reviewer can spread it into the worker payload with no missing keys.
@@ -128,7 +130,6 @@ describe("analyzeLocal — the full Phase-A envelope body", () => {
     expect(Object.keys(payload).sort()).toEqual(
       [
         "diff",
-        "echo",
         "fatalError",
         "findings",
         "id",
@@ -144,12 +145,57 @@ describe("analyzeLocal — the full Phase-A envelope body", () => {
     );
   });
 
-  it("echoes the truncated text when over the cap", () => {
+  it("classifies the workflow it parses (counts land on the metrics)", () => {
+    const body = analyzeLocal(
+      "jobs:\n  b:\n    steps:\n      - uses: actions/checkout@v4\n"
+    );
+    expect(body.uses).toHaveLength(1);
+    expect(body.uses[0].cls).toBe("remoteRef");
+    expect(body.uses[0].moving).toBe(true);
+    expect(body.metrics.usesCount).toBe(1);
+    expect(body.metrics.usesScanned).toBe(1);
+    expect(body.metrics.usesCapHit).toBe(false);
+    // Still a no-op rewrite: nothing has been resolved yet.
+    expect(body.rewrittenYaml).toBe(
+      "jobs:\n  b:\n    steps:\n      - uses: actions/checkout@v4\n"
+    );
+    expect(body.diff?.changed).toBe(0);
+  });
+
+  it("reports the ORIGINAL byte count when the input is truncated", () => {
     const big = "y".repeat(MAX_INPUT_BYTES + 1_000);
     const body = analyzeLocal(big);
     expect(body.metrics.truncated).toBe(true);
-    expect(body.echo).not.toBe(big);
-    expect(body.metrics.byteCount).toBeLessThanOrEqual(MAX_INPUT_BYTES);
+    // ARCH §3.2: the cap never hides how big the input really was.
+    expect(body.metrics.byteCount).toBe(MAX_INPUT_BYTES + 1_000);
+    expect(countBytes(body.rewrittenYaml ?? "")).toBeLessThanOrEqual(
+      MAX_INPUT_BYTES
+    );
+  });
+
+  it("truncates on a code-point boundary and keeps the original byte count", () => {
+    // The cut lands where the high surrogate of a pair would be admitted but its
+    // low partner would not — the exact orphan-producing case (AC-13).
+    const big = "x".repeat(MAX_INPUT_BYTES - 3) + "\u{1F680}".repeat(64);
+    const body = analyzeLocal(big);
+    expect(body.metrics.truncated).toBe(true);
+    expect(body.metrics.byteCount).toBe(countBytes(big));
+    const rewritten = body.rewrittenYaml ?? "";
+    const roundTripped = new TextDecoder().decode(
+      new TextEncoder().encode(rewritten)
+    );
+    expect(roundTripped).toBe(rewritten);
+  });
+
+  it("settles a malformed input as an error VALUE, never a throw", () => {
+    const body = analyzeLocal("jobs:\n\tb: 1\n");
+    expect(body.ok).toBe(false);
+    expect(body.fatalError).toMatch(/doesn't parse as a workflow YAML/);
+    expect(body.fatalError).toContain("2:1");
+    expect(body.uses).toEqual([]);
+    expect(body.rewrittenYaml).toBeNull();
+    expect(body.diff).toBeNull();
+    expect(body.metrics.byteCount).toBe(countBytes("jobs:\n\tb: 1\n"));
   });
 
   it("is deterministic — identical input, identical output", () => {
@@ -165,7 +211,7 @@ describe("analyzeLocal — the full Phase-A envelope body", () => {
       ...second.metrics,
       parseTimeMs: 0,
     });
-    expect(first.echo).toBe(second.echo);
+    expect(first.rewrittenYaml).toBe(second.rewrittenYaml);
   });
 
   it("measures time against an injected clock", () => {

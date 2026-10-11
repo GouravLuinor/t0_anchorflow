@@ -9,10 +9,16 @@ function phaseAWith(overrides: Partial<ReturnType<typeof analyzeLocal>>) {
 }
 
 describe("runPhaseA — the offline report", () => {
-  it("never touches the network and always echoes", () => {
+  it("never touches the network and always returns the full envelope", () => {
     const body = runPhaseA("name: ci\n");
-    expect(body.echo).toBe("name: ci\n");
     expect(body.ok).toBe(true);
+    // The derived surfaces are present, and the no-resolution rewrite is a
+    // byte-identical NO-OP (AC-2) — there is no echo mirror any more.
+    expect(body.rewrittenYaml).toBe("name: ci\n");
+    expect(body.diff).toEqual({ changed: 0, lines: [] });
+    expect(body.uses).toEqual([]);
+    expect(body.findings).toEqual([]);
+    expect(body.permissions).toBeNull();
   });
 });
 
@@ -58,10 +64,11 @@ describe("analyzeResolve — the C1 merge invariant", () => {
 
     expect(merged.uses).toEqual(phaseA.uses);
     expect(merged.permissions).toBe(phaseA.permissions);
-    expect(merged.echo).toBe(phaseA.echo);
     expect(merged.ok).toBe(phaseA.ok);
-    expect(merged.rewrittenYaml).toBeNull();
-    expect(merged.diff).toBeNull();
+    // With no resolutions the Phase-A no-op rewrite is CARRIED OVER, never
+    // blanked — a partial Phase-B envelope cannot erase the offline report.
+    expect(merged.rewrittenYaml).toBe(phaseA.rewrittenYaml);
+    expect(merged.diff).toBe(phaseA.diff);
     expect(Object.keys(merged).sort()).toEqual(Object.keys(phaseA).sort());
   });
 
