@@ -10,6 +10,7 @@ import {
   measureText,
   truncateToCap,
 } from "../analyze";
+import { sortFindings } from "../findings";
 import { MAX_INPUT_BYTES } from "../constants";
 import type { WorkerOutputPayload } from "../types";
 
@@ -121,9 +122,16 @@ describe("analyzeLocal — the full Phase-A envelope body", () => {
     expect(body.fatalError).toBe(null);
     expect(body.uses).toEqual([]);
     expect(body.resolutions).toEqual([]);
-    // The audits land with M2–M4; until then they are EMPTY, never undefined.
+    // The offline audits found nothing to report: EMPTY, never undefined.
     expect(body.findings).toEqual([]);
-    expect(body.permissions).toBeNull();
+    // M3 landed the grant table — a workflow with no `permissions:` block at
+    // any level is reported as an UNSET grant, never as a null placeholder.
+    expect(body.permissions).toEqual({
+      top: null,
+      jobs: [],
+      effective: [],
+      unset: true,
+    });
     expect(body.rateLimit).toEqual({ limit: 60, remaining: 60, resetAt: 0 });
     // A reviewer can spread it into the worker payload with no missing keys.
     const payload: WorkerOutputPayload = { ...body, id: 1, phase: "A" };
@@ -160,6 +168,56 @@ describe("analyzeLocal — the full Phase-A envelope body", () => {
       "jobs:\n  b:\n    steps:\n      - uses: actions/checkout@v4\n"
     );
     expect(body.diff?.changed).toBe(0);
+  });
+
+  it("reports the four offline audits in the canonical deterministic order (AC-10)", () => {
+    // One job per audit, deliberately interleaved so source offsets alone do not
+    // explain the order: the sort must fall back to category, then id.
+    const source = `on: pull_request_target
+permissions: write-all
+jobs:
+  zeta:
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: \${{ github.event.pull_request.head.ref }}
+          persist-credentials: true
+      - run: echo \${{ github.event.issue.title }}
+`;
+    const body = analyzeLocal(source, { now: () => 0 });
+
+    const categories = [...new Set(body.findings.map((f) => f.category))].sort();
+    expect(categories).toEqual([
+      "dangerous-trigger",
+      "excessive-permissions",
+      "persist-credentials",
+      "template-injection",
+    ]);
+    // Every audit contributed, at the severities the adjudication demands.
+    expect(body.findings.some((f) => f.severity === "error")).toBe(true);
+    expect(body.findings.some((f) => f.severity === "warn")).toBe(true);
+
+    // Same source in, same array out — byte-for-byte, twice, and again after a
+    // re-parse (the order is a pure function of the model).
+    const again = analyzeLocal(source, { now: () => 0 });
+    expect(again.findings).toEqual(body.findings);
+    expect(JSON.stringify(again.findings)).toBe(JSON.stringify(body.findings));
+
+    // Offset, then category, then id — with a null offset sorting last.
+    const keys = body.findings.map((f) => ({
+      offset: f.start ?? Number.MAX_SAFE_INTEGER,
+      category: f.category,
+      id: f.id,
+    }));
+    const sorted = [...keys].sort(
+      (a, b) =>
+        a.offset - b.offset ||
+        a.category.localeCompare(b.category) ||
+        a.id.localeCompare(b.id)
+    );
+    expect(keys).toEqual(sorted);
+    // The sort itself is imported from the same module the pipeline uses.
+    expect(sortFindings(body.findings)).toEqual(body.findings);
   });
 
   it("reports the ORIGINAL byte count when the input is truncated", () => {

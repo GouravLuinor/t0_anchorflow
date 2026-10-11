@@ -3,17 +3,20 @@
 // IO, no `fetch`. The worker AND the main-thread fallback both call
 // `analyzeLocal`, so the two paths cannot drift (BAR §4.2).
 //
-// THE PIPELINE (PLAN §1 — M1 ships it end-to-end with resolution stubbed off):
+// THE PIPELINE (PLAN §1):
 //
 //   truncate (cap, code-point boundary)
 //     → yamlParse          structural `uses:` collection + offsets
 //     → classifyUses       6 classes × 2 scopes, moving-ref rule
 //     → yamlRewrite        offset-surgical re-emit (NO-OP with no resolutions)
 //     → unifiedUsesDiff    red/green line diff of that rewrite
+//     → the AUDITS         permission · template-injection · dangerous-trigger
+//                          · persist-credentials → ONE canonical findings array
 //
-// `findings` and `permissions` ship EMPTY / null on purpose: the pinning,
-// permission, injection and trigger AUDITS are later milestones (M2–M4) and land
-// as separate modules that read this same `WorkflowModel`.
+// The four audits are pure functions of the SAME `WorkflowModel` the classifier
+// reads, so an offline paste is fully audited with zero network. Their output is
+// concatenated and sorted into the canonical deterministic order (AC-10):
+// source offset, then category, then id — with a null offset sorting LAST.
 //
 // Malformed YAML comes back as an ERROR ENVELOPE (`ok:false` + `fatalError`
 // copy with the parser's line:column) — never a throw.
@@ -22,6 +25,11 @@
 import { DEFAULT_RATE_LIMIT, EMPTY_METRICS, MAX_INPUT_BYTES } from "./constants";
 import { classifyUses } from "./classify";
 import { unifiedUsesDiff } from "./diff";
+import { buildGrantTable } from "./grantTable";
+import { injectionFindings } from "./injectionDetect";
+import { permissionAudit } from "./permissionAudit";
+import { sortFindings } from "./findings";
+import { dangerousTriggerAudit, persistCredentialsAudit } from "./triggerAudit";
 import { parseWorkflow } from "./yamlParse";
 import { yamlRewrite } from "./rewrite";
 import { measureText, truncateToCap } from "./textMetrics";
@@ -116,6 +124,17 @@ export function analyzeLocal(
 
   const parseTimeMs = elapsed(clock, t0);
 
+  // 5. The four offline audits, over the same structural model. D3 (the
+  //    resolver) concats its `resolution` findings at the merge point in
+  //    `compute.ts`; nothing here needs the network.
+  const permissions = buildGrantTable(parsed.model);
+  const findings = sortFindings([
+    ...permissionAudit(parsed.model),
+    ...injectionFindings(parsed.model),
+    ...dangerousTriggerAudit(parsed.model),
+    ...persistCredentialsAudit(parsed.model),
+  ]);
+
   return {
     ok: true,
     fatalError: null,
@@ -123,10 +142,8 @@ export function analyzeLocal(
     resolutions: [],
     rewrittenYaml,
     diff,
-    // M3 owns the grant table; the model already carries the raw blocks.
-    permissions: null,
-    // M2/M3/M4 own the audits. D1 leaves the array empty but never absent.
-    findings: [],
+    permissions,
+    findings,
     metrics: {
       ...EMPTY_METRICS,
       ...counts,

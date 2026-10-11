@@ -18,7 +18,14 @@ describe("runPhaseA — the offline report", () => {
     expect(body.diff).toEqual({ changed: 0, lines: [] });
     expect(body.uses).toEqual([]);
     expect(body.findings).toEqual([]);
-    expect(body.permissions).toBeNull();
+    // A workflow with no permissions block is an UNSET grant table (M3), which
+    // is exactly the information the audit reports — not a null placeholder.
+    expect(body.permissions).toEqual({
+      top: null,
+      jobs: [],
+      effective: [],
+      unset: true,
+    });
   });
 });
 

@@ -530,3 +530,216 @@ test.describe("Anchorflow shell journeys", () => {
     });
   });
 });
+
+// ── D2 — the security audits on the diagnostic pane ───────────────────────────
+
+/**
+ * The zero-egress guard (SPEC §9 AC-12), applied to the audit journey: register
+ * BEFORE the navigation so nothing that leaves the origin can be missed.
+ */
+function watchEgress(page: Page): () => string[] {
+  const external: string[] = [];
+  page.on("request", (request) => {
+    const host = new URL(request.url()).hostname;
+    if (!["localhost", "127.0.0.1"].includes(host)) external.push(request.url());
+  });
+  return () => external;
+}
+
+/**
+ * Workflow under audit: a `pull_request_target` job with a top-level AND a job
+ * `write-all`, a checkout of the pull request's head ref, persist-credentials
+ * left on, and an injection sink in both a `with:` input and a `run:` block.
+ * That is exactly the shape the four D2 audits exist for (SPEC §4 F5–F8).
+ */
+const AUDIT_WORKFLOW = `name: audit
+on:
+  pull_request_target:
+permissions: write-all
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: \${{ github.event.pull_request.head.ref }}
+          persist-credentials: true
+      - run: echo "title=\${{ github.event.issue.title }}"
+`;
+
+test("the audit findings render with the right severities and copy (AC-6 · AC-7 · AC-8)", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const drainEgress = watchEgress(page);
+  // Clipboard reads are only granted on a secure origin, so the journey runs
+  // against the loopback origin from the start.
+  await page.goto("http://127.0.0.1:3004/tools/anchorflow");
+  await expect(page.locator("#tool-source-input")).toBeVisible();
+
+  const input = page.locator("#tool-source-input");
+  await input.click();
+  await input.fill(AUDIT_WORKFLOW);
+
+  // `station` is the two-pane workstation; the diagnostic pane carries the
+  // findings section the audits land in.
+  await expect(station(page)).toBeVisible();
+
+  // ── The severity summary chip row ──────────────────────────────────────────
+  // 5 critical (2 × write-all, dangerous trigger, 2 × template injection)
+  // + 2 major (write-token coupling, persist-credentials) = 7 findings.
+  await expect(station(page).getByTestId("findings-report")).toBeVisible();
+  await expect(station(page).getByTestId("findings-count-critical")).toContainText("5");
+  await expect(station(page).getByTestId("findings-count-major")).toContainText("2");
+  await expect(station(page).getByText("7 total")).toBeVisible();
+
+  // ── The four audits, each at the severity the adjudication demands ─────────
+  const item = (category: string, severity: string) =>
+    station(page).locator(
+      `[data-testid="finding-item"][data-category="${category}"][data-severity="${severity}"]`
+    );
+
+  // AC-6 — the permission audit: top-level AND job-level write-all are errors.
+  await expect(item("excessive-permissions", "error")).toHaveCount(2);
+  await expect(item("excessive-permissions", "error").first()).toContainText(
+    /permissions: write-all/
+  );
+
+  // AC-7 — the injection audit: the `with:` input AND the `run:` sink.
+  await expect(item("template-injection", "error")).toHaveCount(2);
+  await expect(
+    item("template-injection", "error").filter({ hasText: "github.event.pull_request.head.ref" })
+  ).toHaveCount(1);
+  await expect(
+    item("template-injection", "error").filter({ hasText: "github.event.issue.title" })
+  ).toHaveCount(1);
+  // The remediation is the `env:` indirection, in both remediation flavours.
+  await expect(item("template-injection", "error").first()).toContainText(
+    /Move the value into/
+  );
+  await expect(item("template-injection", "error").last()).toContainText("${VAR}");
+
+  // AC-8 — the dangerous-trigger audit: untrusted code + the elevated token,
+  // with the token-permission coupling as its own major finding.
+  await expect(item("dangerous-trigger", "error")).toHaveCount(1);
+  await expect(item("dangerous-trigger", "error")).toContainText(
+    "github.event.pull_request.head.ref"
+  );
+  await expect(item("dangerous-trigger", "warn")).toHaveCount(1);
+  await expect(item("dangerous-trigger", "warn")).toContainText(
+    "Write token coupled to an elevated trigger"
+  );
+
+  // AC-8 — the persist-credentials audit.
+  await expect(item("persist-credentials", "warn")).toHaveCount(1);
+  await expect(item("persist-credentials", "warn")).toContainText(
+    "persist-credentials: false"
+  );
+
+  // ── The grant table beside it ──────────────────────────────────────────────
+  await expect(station(page).getByTestId("grant-table")).toBeVisible();
+  await expect(
+    station(page).locator('[data-testid="grant-scope"][data-level="write"]')
+  ).toHaveCount(15); // the top-level write-all, inherited by the job
+  await expect(
+    station(page).locator('[data-testid="grant-row"][data-job="label"]')
+  ).toContainText("jobs.label");
+
+  // ── One finding per site, deterministically ordered (AC-10) ────────────────
+  const reorder = async () => {
+    await input.fill(`${AUDIT_WORKFLOW}# a pinned comment\n`);
+    await page.waitForTimeout(200);
+    await input.fill(AUDIT_WORKFLOW);
+  };
+  const before = await station(page).getByTestId("finding-item").evaluateAll((nodes) =>
+    nodes.map((n) => n.getAttribute("data-finding-id"))
+  );
+  await reorder();
+  await expect(station(page).getByTestId("findings-report")).toBeVisible();
+  const after = await station(page).getByTestId("finding-item").evaluateAll((nodes) =>
+    nodes.map((n) => n.getAttribute("data-finding-id"))
+  );
+  expect(after.length).toBe(7);
+  // The canonical order is offset → category → id, so it never reshuffles.
+  expect(after.slice().sort()).toEqual([...after].sort());
+  expect(after).toEqual(before);
+
+  // ── The per-finding copy ───────────────────────────────────────────────────
+  const firstFinding = station(page).getByTestId("finding-item").first();
+  await firstFinding.getByTestId("copy-finding").click();
+  await expect(page.getByText("Finding copied")).toBeVisible();
+  const one = await page.evaluate(() => navigator.clipboard.readText());
+  expect(one).toContain("[error]");
+  expect(one).toContain("where: ");
+  expect(one).toContain("fix: ");
+
+  // ── "Copy all findings" ────────────────────────────────────────────────────
+  const copyAll = station(page).getByTestId("copy-all-findings");
+  await expect(copyAll).toBeEnabled();
+  await copyAll.click();
+  await expect(page.getByText("All findings copied")).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()), { timeout: 3000 })
+    .toContain("Anchorflow findings — 7 total");
+
+  const clipboard = await page.evaluate(() => navigator.clipboard.readText());
+  expect(clipboard).toContain("[error] Untrusted code runs with the elevated token");
+  expect(clipboard).toContain("[warn] `persist-credentials: true`");
+  expect(clipboard).toContain("critical: 5 · major: 2 · minor: 0 · info: 0");
+  expect(clipboard).toContain("where: jobs.label.steps[1].run");
+
+  // A copy failure must land on the rose toast, not a silent success. Both
+  // strategies of copyTextToClipboard are denied, so the failure is real.
+  await page.evaluate(() => {
+    const deny = () => Promise.reject(new Error("denied"));
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: deny, readText: deny },
+    });
+    document.execCommand = () => false;
+  });
+  await copyAll.click();
+  await expect(page.getByText("Copy failed")).toBeVisible();
+
+  // Zero egress: no request left the machine (the visual spec owns the guard).
+  expect(drainEgress(), "the audits never leave the origin").toEqual([]);
+});
+
+test("a least-privilege workflow reports NO findings (AC-6 negative)", async ({
+  page,
+}) => {
+  const drainEgress = watchEgress(page);
+  await page.goto("/tools/anchorflow");
+  await expect(page.locator("#tool-source-input")).toBeVisible();
+  const input = page.locator("#tool-source-input");
+  await input.click();
+  await input.fill(`name: clean
+on: push
+permissions: {}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: npm test
+`);
+
+  await expect(station(page).getByTestId("findings-clear")).toBeVisible();
+  await expect(station(page).getByTestId("findings-clear")).toContainText("no findings");
+  await expect(station(page).getByText("0 total")).toBeVisible();
+  await expect(station(page).getByTestId("copy-all-findings")).toBeDisabled();
+  // The grant table still reports the exact grant, and marks it as pinned.
+  await expect(station(page).getByTestId("grant-table")).toBeVisible();
+  await expect(
+    station(page).locator('[data-testid="grant-scope"][data-scope="contents"][data-level="read"]')
+  ).toHaveCount(1);
+  await expect(station(page).getByTestId("grant-row")).toHaveCount(1);
+
+  expect(drainEgress(), "the audits never leave the origin").toEqual([]);
+});

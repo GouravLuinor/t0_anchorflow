@@ -15,6 +15,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { DEFAULT_RATE_LIMIT } from "./constants";
+import { sortFindings } from "./findings";
 import { analyzeLocal, type ReportBody } from "./analyze";
 import type {
   ClassifiedUses,
@@ -52,9 +53,11 @@ export interface PhaseBOptions {
  * Merge contract (implemented here, extended — never replaced — by M2):
  *   1. `uses` = phaseA.uses         — Phase B never reclassifies.
  *   2. `permissions` = phaseA.permissions — never re-derived, never undefined.
- *   3. `findings` = [...phaseA.findings, ...phaseBFindings], sorted into the
- *      canonical order (SPEC §9 AC-10). Reads are defensive: an undefined
- *      incoming array must never blank the offline report.
+ *   3. `findings` = sortFindings([...phaseA.findings, ...phaseBFindings]), in
+ *      the canonical deterministic order (SPEC §9 AC-10): ascending source
+ *      offset (null sorts LAST), then category, then id. This is the D3 seam —
+ *      the resolver concats its own `resolution` findings HERE, and the offline
+ *      audit findings are never blanked.
  *   4. `ok` = phaseA.ok             — a 404/429/offline never flips ok.
  *   5. `rewrittenYaml` / `diff`     — recomputed from the resolutions (the
  *      D3 seam: `buildRewriteEdits(source, resolutions)` + `unifiedUsesDiff`);
@@ -102,7 +105,7 @@ export function analyzeResolve(
     fatalError: phaseA.fatalError ?? null,
     uses: offlineUses,
     permissions: offlinePermissions,
-    findings: [...offlineFindings, ...phaseBFindings],
+    findings: sortFindings([...offlineFindings, ...phaseBFindings]),
     resolutions: [],
     rewrittenYaml: phaseA.rewrittenYaml ?? null,
     diff: phaseA.diff ?? null,

@@ -14,9 +14,23 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
 import { copyTextToClipboard } from "@/lib/utils";
 import { summarizeClasses } from "../_lib/classify";
+import {
+  SEVERITY_BANDS,
+  countBySeverity,
+  formatFinding,
+  formatFindings,
+  sortFindings,
+} from "../_lib/findings";
+import { effectiveJobGrants } from "../_lib/grantTable";
 import { lineOfOffset } from "../_lib/textMetrics";
 import { useToolStore } from "../_store/useToolStore";
-import type { ClassifiedUses, UnifiedDiff } from "../_lib/types";
+import type {
+  ClassifiedUses,
+  Finding,
+  GrantTable,
+  Severity,
+  UnifiedDiff,
+} from "../_lib/types";
 
 /** One authored motion: the lime hairline sweeps once as a compute settles. */
 const SWEEP_MS = 600;
@@ -27,11 +41,16 @@ const SWEEP_MS = 600;
  *   1. the count metrics (characters / words / bytes / lines);
  *   2. the classification summary — pinned · pending · moving · local/docker ·
  *      invalid;
- *   3. one row per collected `uses:` with its class badge (lime = already
+ *   3. the FINDINGS REPORT — the four offline audits (permissions, template
+ *      injection, dangerous triggers, persist-credentials) grouped by severity
+ *      band, critical → minor, with a severity summary chip row, a per-finding
+ *      copy and a "Copy all findings";
+ *   4. the TOKEN GRANT TABLE — the effective `GITHUB_TOKEN` scope per job;
+ *   5. one row per collected `uses:` with its class badge (lime = already
  *      pinned, amber = moving ref, violet = remote ref pending, rose = invalid)
  *      and its `# line N · jobs.<id>.steps[i].uses` source annotation;
- *   4. the REWRITTEN YAML — the copyable, offset-surgical output (⌘⇧C);
- *   5. the red/green unified diff, empty until refs are resolved.
+ *   6. the REWRITTEN YAML — the copyable, offset-surgical output (⌘⇧C);
+ *   7. the red/green unified diff, empty until refs are resolved.
  *
  * With no resolutions the rewrite is a byte-identical NO-OP, so the diff reads
  * "No changes yet — resolve refs to pin" and the rewritten YAML is exactly the
@@ -42,6 +61,8 @@ const SWEEP_MS = 600;
  */
 export function DiagnosticPane() {
   const uses = useToolStore((s) => s.report.uses);
+  const findings = useToolStore((s) => s.report.findings);
+  const permissions = useToolStore((s) => s.report.permissions);
   const rewrittenYaml = useToolStore((s) => s.report.rewrittenYaml);
   const diff = useToolStore((s) => s.report.diff);
   const metrics = useToolStore((s) => s.metrics);
@@ -151,6 +172,8 @@ export function DiagnosticPane() {
             </dl>
 
             <div className="flex-1 overflow-y-auto">
+              <FindingsReport findings={findings} source={source} />
+              <GrantTableView grants={permissions} />
               <UsesClassification uses={uses} source={source} />
               <RewrittenOutput rewrittenYaml={rewrittenYaml ?? ""} sweeping={sweeping} />
               <DiffView diff={diff} />
@@ -174,6 +197,354 @@ export function DiagnosticPane() {
         )}
       </div>
     </div>
+  );
+}
+
+// ── Findings report ─────────────────────────────────────────────────────────
+
+/**
+ * The four finding bands, worst-first, with their Matchlight colours:
+ * rose = critical (error) · amber = major (warn) · violet = minor (the
+ * secondary grade) · zinc = info · lime = the all-clear state.
+ */
+const SEVERITY_STYLE: Record<
+  Severity,
+  { label: string; band: string; chip: string; dot: string }
+> = {
+  error: {
+    label: "critical",
+    band: "text-brand-rose",
+    chip: "border-brand-rose/40 bg-brand-rose/10 text-brand-rose",
+    dot: "bg-brand-rose",
+  },
+  warn: {
+    label: "major",
+    band: "text-brand-amber",
+    chip: "border-brand-amber/40 bg-brand-amber/10 text-brand-amber",
+    dot: "bg-brand-amber",
+  },
+  minor: {
+    label: "minor",
+    band: "text-brand-violet",
+    chip: "border-brand-violet/40 bg-brand-violet/10 text-brand-violet",
+    dot: "bg-brand-violet",
+  },
+  info: {
+    label: "info",
+    band: "text-zinc-400",
+    chip: "border-surface-border bg-surface-subtle text-zinc-400",
+    dot: "bg-zinc-400",
+  },
+};
+
+const FINDING_COPY_RESET_MS = 1500;
+
+/**
+ * The offline audit report: a severity summary chip row, then every finding
+ * grouped by band (critical → info) with its why, its expression and its fix.
+ * The copy is the canonical order (AC-10), so the clipboard always reads the
+ * same way for the same workflow.
+ */
+function FindingsReport({ findings, source }: { findings: Finding[]; source: string }) {
+  // Canonical order (AC-10). The bands below group by severity, so the array
+  // only needs to be deterministic — never re-sorted per render.
+  const ordered = React.useMemo(() => sortFindings(findings), [findings]);
+  const counts = React.useMemo(() => countBySeverity(ordered), [ordered]);
+  const [copiedAll, setCopiedAll] = React.useState(false);
+  const [copiedId, setCopiedId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!copiedAll && !copiedId) return;
+    const timer = window.setTimeout(() => {
+      setCopiedAll(false);
+      setCopiedId(null);
+    }, FINDING_COPY_RESET_MS);
+    return () => window.clearTimeout(timer);
+  }, [copiedAll, copiedId]);
+
+  const handleCopyAll = async () => {
+    if (ordered.length === 0) return;
+    const succeeded = await copyTextToClipboard(formatFindings(ordered));
+    if (succeeded) {
+      setCopiedAll(true);
+      toast({
+        title: "All findings copied",
+        description: `${ordered.length} finding${ordered.length === 1 ? "" : "s"}`,
+      });
+    } else {
+      toast({ title: "Copy failed", variant: "destructive" });
+    }
+  };
+
+  const handleCopyOne = async (finding: Finding) => {
+    const succeeded = await copyTextToClipboard(formatFinding(finding));
+    if (succeeded) {
+      setCopiedId(finding.id);
+      toast({ title: "Finding copied" });
+    } else {
+      toast({ title: "Copy failed", variant: "destructive" });
+    }
+  };
+
+  return (
+    <section aria-label="Security findings" className="border-b border-surface-border">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 pt-3 pb-2">
+        <h3 className="font-mono text-[10px] uppercase tracking-wider text-zinc-400">
+          Findings
+        </h3>
+        <span className="font-mono text-[10px] tabular-nums text-zinc-500">
+          {ordered.length} total
+        </span>
+        <div
+          data-testid="findings-counts"
+          className="flex flex-wrap items-center gap-1.5"
+        >
+          {ordered.length === 0 ? (
+            <span
+              data-testid="findings-clear"
+              className="inline-flex items-center gap-1 rounded border border-brand-lime/40 bg-brand-lime/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-brand-lime"
+            >
+              no findings
+            </span>
+          ) : (
+            SEVERITY_BANDS.filter((band) => counts[band.severity] > 0).map(
+              (band) => (
+                <span
+                  key={band.severity}
+                  data-testid={`findings-count-${band.label}`}
+                  className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide ${SEVERITY_STYLE[band.severity].chip}`}
+                >
+                  {SEVERITY_STYLE[band.severity].label}
+                  <strong className="tabular-nums">{counts[band.severity]}</strong>
+                </span>
+              )
+            )
+          )}
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="hidden font-mono text-[10px] text-zinc-500 sm:inline">
+            <Keycap size="xs">⌘⇧C</Keycap>
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCopyAll}
+            disabled={ordered.length === 0}
+            data-testid="copy-all-findings"
+            className="h-7 gap-1.5 px-2.5 text-xs text-zinc-300 transition-colors duration-150 ease-out-expo hover:border-surface-borderHover hover:bg-surface-elevated hover:text-zinc-100 active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-brand-lime/70 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {copiedAll ? (
+              <>
+                <Check className="h-3.5 w-3.5 text-brand-lime" aria-hidden="true" />
+                Copied
+              </>
+            ) : (
+              <>
+                <Copy className="h-3.5 w-3.5 text-zinc-400" aria-hidden="true" />
+                Copy all findings
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {ordered.length === 0 ? (
+        <p className="px-4 pb-3 text-xs leading-relaxed text-zinc-400">
+          The four offline audits — permissions, template injection, dangerous
+          triggers and persist-credentials — found nothing to report in this
+          workflow.
+        </p>
+      ) : (
+        <div data-testid="findings-report">
+          {SEVERITY_BANDS.map((band) => {
+            const group = ordered.filter((f) => f.severity === band.severity);
+            if (group.length === 0) return null;
+            const style = SEVERITY_STYLE[band.severity];
+            return (
+              <div
+                key={band.severity}
+                data-testid={`findings-band-${band.label}`}
+                data-severity={band.severity}
+                className="border-t border-surface-border/60 px-4 py-2.5"
+              >
+                <div className="flex items-baseline gap-2 pb-2">
+                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${style.dot}`} />
+                  <h4
+                    className={`font-mono text-[10px] uppercase tracking-wider ${style.band}`}
+                  >
+                    {style.label}
+                  </h4>
+                  <span className="font-mono text-[10px] tabular-nums text-zinc-500">
+                    {group.length}
+                  </span>
+                </div>
+                <ul className="space-y-2">
+                  {group.map((finding) => (
+                    <li
+                      key={finding.id}
+                      data-testid="finding-item"
+                      data-severity={finding.severity}
+                      data-category={finding.category}
+                      data-finding-id={finding.id}
+                      className="rounded border border-surface-border bg-surface-subtle/40 px-3 py-2"
+                    >
+                      <div className="flex items-baseline gap-x-2 gap-y-1">
+                        <span className="min-w-0 flex-1 text-xs font-medium leading-relaxed text-zinc-100">
+                          {finding.title}
+                        </span>
+                        <span className="shrink-0 font-mono text-[10px] text-zinc-500">
+                          {finding.start === null
+                            ? finding.where
+                            : `# line ${lineOfOffset(source, finding.start)} · ${finding.where}`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyOne(finding)}
+                          aria-label={`Copy finding ${finding.id}`}
+                          data-testid="copy-finding"
+                          className="shrink-0 rounded border border-surface-border bg-surface-subtle px-1.5 py-0.5 font-mono text-[10px] text-zinc-400 transition-colors duration-150 ease-out-expo hover:border-surface-borderHover hover:bg-surface-elevated hover:text-zinc-100 active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-brand-lime/70 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+                        >
+                          {copiedId === finding.id ? (
+                            <Check className="h-3 w-3 text-brand-lime" aria-hidden="true" />
+                          ) : (
+                            <Copy className="h-3 w-3" aria-hidden="true" />
+                          )}
+                        </button>
+                      </div>
+                      <p className="pt-1 text-xs leading-relaxed text-zinc-300">
+                        {finding.detail}
+                      </p>
+                      {finding.evidence ? (
+                        <p className="mt-1 break-all rounded bg-surface-base px-2 py-1 font-mono text-[10px] leading-relaxed text-zinc-400">
+                          {finding.evidence}
+                        </p>
+                      ) : null}
+                      <p className="mt-1.5 flex gap-1.5 text-xs leading-relaxed text-zinc-400">
+                        <span className="font-mono text-[10px] uppercase tracking-wide text-zinc-500">
+                          fix
+                        </span>
+                        <span className="min-w-0">{finding.remediation}</span>
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ── Token grant table ────────────────────────────────────────────────────────
+
+/** `contents: write` · `id-token: read` — the grant, in the worktable's mono. */
+function grantLabel(
+  scope: string,
+  level: "read" | "write" | "none"
+): { text: string; className: string } {
+  if (level === "write") {
+    return { text: `${scope}: write`, className: "border-brand-rose/40 bg-brand-rose/10 text-brand-rose" };
+  }
+  if (level === "read") {
+    return { text: `${scope}: read`, className: "border-surface-border bg-surface-subtle text-zinc-300" };
+  }
+  return { text: `${scope}: none`, className: "border-surface-border bg-surface-subtle text-zinc-500" };
+}
+
+/**
+ * The effective `GITHUB_TOKEN` grant per job: a job's own block overrides the
+ * top-level block per scope (ARCH §3.5), so each row shows WHERE the level came
+ * from — the job's own block (violet = secondary scope) or the inherited top
+ * block. A workflow with no block at all is marked UNSET, because that is a
+ * finding in itself (the token falls back to the repository default).
+ */
+function GrantTableView({ grants }: { grants: GrantTable | null }) {
+  if (!grants) {
+    return (
+      <section aria-label="Token grant table" className="border-b border-surface-border">
+        <p className="px-4 py-3 text-xs text-zinc-400">
+          The grant table appears once a workflow parses.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section
+      aria-label="Token grant table"
+      className="border-b border-surface-border px-4 pb-3 pt-2"
+    >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pb-2">
+        <h3 className="font-mono text-[10px] uppercase tracking-wider text-zinc-400">
+          Token grant table
+        </h3>
+        {grants.unset ? (
+          <span className="inline-flex items-center rounded border border-brand-amber/40 bg-brand-amber/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-brand-amber">
+            unset — inherits the repository default
+          </span>
+        ) : null}
+      </div>
+
+      {grants.top ? (
+        <p className="pb-1 font-mono text-[10px] text-zinc-500">
+          top-level:{" "}
+          <span className="text-zinc-300">
+            {grants.top.all
+              ? `${grants.top.all}-all (${Object.keys(grants.top.scopes).length} scope overrides)`
+              : Object.keys(grants.top.scopes).length === 0
+                ? "{}"
+                : Object.entries(grants.top.scopes)
+                    .map(([scope, level]) => `${scope}: ${level}`)
+                    .join(" · ")}
+          </span>
+        </p>
+      ) : null}
+
+      <div data-testid="grant-table" className="space-y-1.5">
+        {grants.jobs.map((job) => {
+          const rows = effectiveJobGrants(
+            { id: job.jobId, permissions: job.block },
+            grants.top
+          );
+          return (
+            <div key={job.jobId} data-testid="grant-row" data-job={job.jobId}>
+              <p className="font-mono text-[10px] text-zinc-500">
+                jobs.{job.jobId}
+                {job.block ? "" : " — no block, inherits the top-level grant"}
+              </p>
+              {rows.length === 0 ? (
+                <p className="pl-2 font-mono text-[10px] text-zinc-500">
+                  no scopes granted
+                </p>
+              ) : (
+                <ul className="flex flex-wrap gap-1 pl-2 pt-0.5">
+                  {rows.map((row) => {
+                    const label = grantLabel(row.scope, row.level);
+                    return (
+                      <li
+                        key={`${row.scope}-${row.source}`}
+                        data-testid="grant-scope"
+                        data-scope={row.scope}
+                        data-level={row.level}
+                        title={row.source === "top" ? "inherited from the top-level block" : `set by jobs.${job.jobId}`}
+                        className={`inline-flex items-center rounded border px-1.5 py-0.5 font-mono text-[10px] ${label.className}`}
+                      >
+                        {label.text}
+                        <span className="pl-1 text-zinc-500">
+                          {row.source === "top" ? "top" : "job"}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

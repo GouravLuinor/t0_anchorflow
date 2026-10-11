@@ -10,7 +10,8 @@
 // M1 (parse / classify / rewrite / diff) has LANDED — `uses`, `rewrittenYaml`
 // and `diff` are populated on the Phase-A path and the placeholder `echo`
 // mirror is RETIRED: the derived surfaces are the output. `permissions` and
-// `findings` stay empty until the M2/M3/M4 audits land, and the resolver seam
+// `findings` are populated by the D2 audits (permissions · template-injection ·
+// dangerous triggers · persist-credentials); the resolver seam
 // (`FetchLike`) stays a required option so `_lib` never names `fetch`.
 // Arrays ship EMPTY (never `undefined`) so the merge contract holds.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -76,8 +77,12 @@ export interface StepNode {
   usesValueEnd: number | null;
   usesComment: string | null;
   run: string | null;
+  runStart: number | null;
   withValues: Record<string, string>;
+  /** Offset of every `with:` input value, keyed like withValues (audit line cites). */
+  withStarts: Record<string, number>;
   ifExpr: string | null;
+  ifStart: number | null;
   persistCredentials: boolean | null; // checkout steps only
   checkoutRef: string | null; // with.ref on checkout steps
 }
@@ -85,9 +90,13 @@ export interface StepNode {
 export interface JobNode {
   id: string;
   permissions: RawPermissionBlock | null;
+  /** Offset of this job's own `permissions:` block; null when the job is UNSET. */
+  permissionsStart: number | null;
   steps: StepNode[];
   uses: UsesRaw | null; // job-level reusable-workflow call (scope "job")
   withInputs: Record<string, string>; // reusable-workflow inputs
+  /** Offset of every reusable-workflow input value, keyed like withInputs. */
+  withInputStarts: Record<string, number>;
 }
 
 export interface TriggerInfo {
@@ -104,6 +113,8 @@ export interface WorkflowModel {
   ok: boolean;
   error: string | null; // malformed-YAML message; errors-as-values
   topPermissions: RawPermissionBlock | null;
+  /** Offset of the top-level `permissions:` block; null when the workflow is UNSET. */
+  topPermissionsStart: number | null;
   triggers: TriggerInfo;
   jobs: JobNode[];
   uses: UsesRaw[]; // FLATTENED: step uses + job uses (scope-tagged)
@@ -127,7 +138,12 @@ export interface Resolution {
 }
 
 // ── Findings — ONE canonical array ───────────────────────────────────────────
-export type Severity = "error" | "warn" | "info";
+/**
+ * Severity ladder, worst-first. The four grades render as the four finding
+ * bands critical · major · minor · info (SPEC §4 F5-F8 name the same grades
+ * error / warn / info for the audits each grade belongs to).
+ */
+export type Severity = "error" | "warn" | "minor" | "info";
 
 export type FindingCategory =
   | "unpinned-uses"
@@ -169,10 +185,17 @@ export interface InjectionSink {
   id: string;
   where: string;
   expression: string;
+  /** The most specific untrusted context found at the site. */
   contextPath: string;
   severity: Severity;
   remediation: string;
   source: "run" | "with" | "if";
+  /** 1-based step index, or null for a job-level `with:` input. */
+  stepIndex: number | null;
+  /** Every untrusted context the site carries, most specific first. */
+  contextPaths: string[];
+  /** The finding copy for this sink (the `Finding.detail` it maps to). */
+  detail: string;
   start: number | null;
 }
 

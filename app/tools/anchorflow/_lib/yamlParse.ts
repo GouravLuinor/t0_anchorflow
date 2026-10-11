@@ -53,9 +53,11 @@ export type ParseResult =
 const EMPTY_JOB = (id: string): JobNode => ({
   id,
   permissions: null,
+  permissionsStart: null,
   steps: [],
   uses: null,
   withInputs: {},
+  withInputStarts: {},
 });
 
 function emptyModel(): WorkflowModel {
@@ -63,6 +65,7 @@ function emptyModel(): WorkflowModel {
     ok: true,
     error: null,
     topPermissions: null,
+    topPermissionsStart: null,
     triggers: { pullRequestTarget: false, workflowRun: false },
     jobs: [],
     uses: [],
@@ -90,17 +93,35 @@ function scalarText(node: unknown): string | null {
     : String(node.value);
 }
 
-/** Flattens a mapping's scalar entries (nested blocks are skipped, not faked). */
-function scalarRecord(node: unknown): Record<string, string> {
-  const out: Record<string, string> = {};
-  if (!isMap(node)) return out;
+/** A node's start offset into the ORIGINAL source, or null when unavailable. */
+function nodeStart(node: unknown): number | null {
+  if (!node || typeof node !== "object") return null;
+  const range = (node as { range?: unknown }).range;
+  return Array.isArray(range) && typeof range[0] === "number" ? range[0] : null;
+}
+
+/**
+ * Flattens a mapping's scalar entries with their value offsets (nested blocks
+ * are skipped, not faked). The offsets let the audits cite the exact line of
+ * the input they flagged instead of only the job/step path.
+ */
+function scalarRecordOffsets(node: unknown): {
+  values: Record<string, string>;
+  starts: Record<string, number>;
+} {
+  const values: Record<string, string> = {};
+  const starts: Record<string, number> = {};
+  if (!isMap(node)) return { values, starts };
   for (const item of node.items) {
     if (!isPair(item) || !isScalar(item.key)) continue;
     const text = scalarText(item.value);
     if (text === null) continue;
-    out[String(item.key.value)] = text;
+    const key = String(item.key.value);
+    values[key] = text;
+    const start = nodeStart(item.value);
+    if (start !== null) starts[key] = start;
   }
-  return out;
+  return { values, starts };
 }
 
 /** The trailing comment the parser attached to a value (" v4" → "v4"). */
@@ -242,13 +263,16 @@ function readJob(jobId: string, jobNode: unknown, collector: Collector, maxUsesS
 
     if (key === "permissions") {
       job.permissions = parsePermissionBlock(item.value);
+      job.permissionsStart = nodeStart(item.value);
       continue;
     }
 
     if (key === "with") {
       // Reusable-workflow inputs. Read as a flat scalar map — a nested block
       // here is not an injection surface, so it is skipped rather than faked.
-      job.withInputs = scalarRecord(item.value);
+      const inputs = scalarRecordOffsets(item.value);
+      job.withInputs = inputs.values;
+      job.withInputStarts = inputs.starts;
       continue;
     }
 
@@ -278,8 +302,11 @@ function readJob(jobId: string, jobNode: unknown, collector: Collector, maxUsesS
         usesValueEnd: null,
         usesComment: null,
         run: null,
+        runStart: null,
         withValues: {},
+        withStarts: {},
         ifExpr: null,
+        ifStart: null,
         persistCredentials: null,
         checkoutRef: null,
       };
@@ -307,14 +334,18 @@ function readJob(jobId: string, jobNode: unknown, collector: Collector, maxUsesS
         }
         if (stepKey === "run") {
           step.run = scalarText(entry.value);
+          step.runStart = nodeStart(entry.value);
           continue;
         }
         if (stepKey === "if") {
           step.ifExpr = scalarText(entry.value);
+          step.ifStart = nodeStart(entry.value);
           continue;
         }
         if (stepKey === "with") {
-          step.withValues = scalarRecord(entry.value);
+          const inputs = scalarRecordOffsets(entry.value);
+          step.withValues = inputs.values;
+          step.withStarts = inputs.starts;
         }
       }
 
@@ -376,7 +407,13 @@ export function parseWorkflow(
     }
 
     const model = emptyModel();
-    model.topPermissions = parsePermissionBlock(pairAt(doc.contents, "permissions")?.value);
+    const topPermissionsPair = pairAt(doc.contents, "permissions");
+    model.topPermissions = topPermissionsPair
+      ? parsePermissionBlock(topPermissionsPair.value)
+      : null;
+    model.topPermissionsStart = topPermissionsPair
+      ? nodeStart(topPermissionsPair.value)
+      : null;
     model.triggers = readTriggers(pairAt(doc.contents, "on")?.value);
 
     const jobsNode = pairAt(doc.contents, "jobs")?.value;
