@@ -101,6 +101,12 @@ npm run build       # production build (standalone)
 npm run test:e2e    # Playwright — boots the real standalone artifact
 ```
 
+`npm run test:e2e` builds once and then serves the packaged standalone artifact
+with its `public/` + `.next/static/` staged in. If a server is already listening
+on 3004, Playwright adopts it (`reuseExistingServer`) — so kill a stale
+standalone from an earlier build before re-running, or you will test the old
+artifact.
+
 ---
 
 ## Scripts

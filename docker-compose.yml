@@ -1,0 +1,52 @@
+services:
+  anchorflow:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: norai-anchorflow
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3004:3004"
+    environment:
+      - NODE_ENV=production
+      - PORT=3004
+      - HOSTNAME=0.0.0.0
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3004/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Optional Automated HTTPS Reverse Proxy (Caddy with Auto-SSL)
+  # Uncomment if you want Caddy to handle SSL automatically on your VPS:
+  #
+  # caddy:
+  #   image: caddy:2-alpine
+  #   container_name: norai-caddy
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
+  #     - caddy_data:/data
+  #     - caddy_config:/config
+  #   depends_on:
+  #     - anchorflow
+
+# volumes:
+#   caddy_data:
+#   caddy_config:
