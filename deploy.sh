@@ -49,20 +49,18 @@ if [ -d ".git" ]; then
     git reset --hard origin/main
 fi
 
-# 2. Build and restart Docker containers
-echo "Building Docker image & starting container..."
-docker compose build --pull
-docker compose up -d --remove-orphans
+# 2. Build and restart PM2 process
+echo "Installing production dependencies & building..."
+npm ci
+npm run build
+# Stage standalone assets as required by Next.js standalone output
+cp -r public .next/standalone/ || true
+cp -r .next/static .next/standalone/.next/ || true
 
-# 3. Prune dangling build images to save VPS disk space
-echo "Cleaning up dangling build images..."
-docker image prune -f
-
-# 4. Check container health status
-echo "Verifying container health..."
-sleep 5
-docker compose ps
+echo "Managing PM2 process (anchor-norai)..."
+pm2 restart anchor-norai || pm2 start ecosystem.config.js
+pm2 save
 
 echo "=========================================="
-echo "Anchorflow deployed successfully!"
+echo "Anchorflow deployed successfully on PM2!"
 echo "=========================================="
