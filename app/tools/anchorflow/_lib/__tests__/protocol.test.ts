@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isReadyMessage,
   acceptDispatch,
   INITIAL_DISPATCH_STATE,
   isStaleDispatch,
@@ -68,5 +69,18 @@ describe("the same guard on the reply path", () => {
     expect(isStaleDispatch(res(4, "B"), state)).toBe(false);
     state = acceptDispatch(res(4, "B"), state);
     expect(isStaleDispatch(res(4, "B"), state)).toBe(true);
+  });
+});
+
+describe("readiness handshake", () => {
+  it("recognises the worker's ready message", () => {
+    expect(isReadyMessage({ type: "ready" })).toBe(true);
+  });
+
+  it("never mistakes an analysis envelope or junk for readiness", () => {
+    expect(isReadyMessage({ id: 1, phase: "A", ok: true })).toBe(false);
+    expect(isReadyMessage({ type: "other" })).toBe(false);
+    expect(isReadyMessage(null)).toBe(false);
+    expect(isReadyMessage("ready")).toBe(false);
   });
 });
