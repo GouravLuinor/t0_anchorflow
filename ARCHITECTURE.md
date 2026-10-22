@@ -13,7 +13,7 @@
 |---|---|---|
 | Framework | **Next.js 15 App Router** (`^15.5.x`) + **React 19** + TS `strict` | Sibling parity; App Router root `redirect()`; standalone output for PM2/Docker. |
 | TS | `strict: true`, `moduleResolution: "bundler"`, `paths: { "@/*": ["./*"] }` | Copy regex-craft `tsconfig.json`. |
-| Styling | **Tailwind `^3.4`** + `tailwindcss-animate` + Matchlight tokens | Dual-theme token ladder, one accent, inverted zinc. |
+| Styling | **Tailwind `^3.4`** + `tailwindcss-animate` + Certified Copy tokens | Dual-theme tokens; `theme.colors` replaced by the token names only. |
 | State | **zustand `^5`** | Persist content-only; atomic single-`set()` settle. |
 | Theming | **next-themes `^0.4`** | Per-tool `storageKey="anchorflow-theme"`. |
 | YAML | **eemeli `yaml` `^2.9`** (`Document` API, `keepSourceTokens`) | **Only** library that preserves comments/formatting. js-yaml cannot round-trip comments — forbidden. |
@@ -37,21 +37,21 @@ the test seam. Enforced by a source-scan test (SPEC §9 AC-16).
 
 ## 2. Design system
 
-Matchlight token ladder is reused verbatim (canvas/ink/surface ladder, one
-`brand-lime` accent, semantic-only violet/amber/rose, inverted zinc neutral, the
-craft-floor rules, five interaction states). Anchorflow maps the semantic colors
-to its own meaning, as the shipped `_components/DiagnosticPane.tsx` renders them:
-- **lime** = pinned / match / primary / the privacy promise.
-- **violet** = **pending resolution** (a ref the resolver has not dispatched yet)
-  and **minor** severity in the findings bands.
-- **amber** = warn / degraded / truncation / the `uses:` scan cap / the rate-limit
-  banner.
-- **rose** = error finding / copy-failure toast / a ref refused by the path-safety
-  gate.
-Ink-on-canvas is measured `>10:1` in both themes and the secondary/muted zinc
-steps clear `4.5:1` on the surfaces they render on — computed from the shipped
-`app/globals.css` values by `app/tools/anchorflow/__tests__/contrast.test.ts`.
-Full surface semantics: `docs/DESIGN.md`.
+Certified Copy: a security-printing world with its own token set (paper /
+sheet / sunk / band ground, three inks, and one job per colour). The UI maps
+the engine's states onto it as `_components/Ledger.tsx` and
+`_components/ReportTabs.tsx` render them:
+- **seal** = pinned / primary / focus; every pinned row wears a guilloché seal
+  generated from its SHA (`_lib/seal.ts`).
+- **moving** = an unpinned ref (a floating major, or a tag not yet resolved).
+- **major** = major findings / degraded / truncation / the `uses:` scan cap /
+  the rate-limit banner.
+- **critical** = critical findings / copy-failure toast / a ref refused by the
+  path-safety gate.
+Every text role clears `4.5:1` on every surface it renders on in both themes —
+computed from the shipped `app/globals.css` values by
+`app/tools/anchorflow/__tests__/contrast.test.ts`.
+Full surface semantics: `DESIGN.md` (root) and `.impeccable/design.json`.
 
 ---
 

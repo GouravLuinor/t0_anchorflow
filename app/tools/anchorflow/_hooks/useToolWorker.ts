@@ -15,8 +15,10 @@ import {
 import {
   acceptDispatch,
   INITIAL_DISPATCH_STATE,
+  isReadyMessage,
   isStaleDispatch,
   type DispatchState,
+  type WorkerReadyMessage,
 } from "../_lib/protocol";
 import { truncateForDispatch } from "../_lib/textMetrics";
 import { useToolStore } from "../_store/useToolStore";
@@ -51,6 +53,16 @@ import type {
 /** Neutral in-flight crash copy — never let the watchdog verdict fabricate one. */
 const WORKER_CRASH_ERROR = "Worker crashed — switched to main-thread mode";
 
+/**
+ * How long a freshly spawned worker may take to load before we stop waiting
+ * and compute on the main thread instead. Generous on purpose: a low-end phone
+ * on mobile data can take seconds to fetch and parse the chunk, and that is
+ * loading, not a verdict on the workflow.
+ */
+const WORKER_BOOT_TIMEOUT_MS = 15_000;
+const WORKER_BOOT_NOTICE =
+  "Background worker did not start — analysing on the main thread (same core)";
+
 function debounceFor(length: number): number {
   if (length > 20_000) return DEBOUNCE_LARGE_MS;
   if (length > 5_000) return DEBOUNCE_MEDIUM_MS;
@@ -75,13 +87,13 @@ export function useToolWorker() {
   const dispatchRef = useRef<DispatchState>(INITIAL_DISPATCH_STATE);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resolveDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
+    null,
   );
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Dispatch id protected by the armed watchdog; -1 while disarmed. */
   const watchdogIdRef = useRef(-1);
   const successAnnounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
+    null,
   );
   /** Worker-scope controller: never two resolves in flight (ARCH §4 point 2). */
   const resolveControllerRef = useRef<AbortController | null>(null);
@@ -100,6 +112,28 @@ export function useToolWorker() {
   inputRef.current = { source, autoResolve };
 
   const degradedRef = useRef(false);
+
+  /** True once the current worker has posted its ready handshake. */
+  const workerReadyRef = useRef(false);
+  /** Sends held while the worker loads; only the newest per phase survives. */
+  const pendingPhaseARef = useRef<(() => void) | null>(null);
+  const pendingPhaseBRef = useRef<(() => void) | null>(null);
+  const bootTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearBootTimer = useCallback(() => {
+    if (bootTimerRef.current) clearTimeout(bootTimerRef.current);
+    bootTimerRef.current = null;
+  }, []);
+
+  /** Sends now when the worker is ready, otherwise holds the newest send. */
+  const sendWhenReady = useCallback((phase: "A" | "B", send: () => void) => {
+    if (workerReadyRef.current) {
+      send();
+      return;
+    }
+    if (phase === "A") pendingPhaseARef.current = send;
+    else pendingPhaseBRef.current = send;
+  }, []);
 
   // Rehydrate persisted user content after mount (skipHydration in store).
   // The resulting state change re-triggers the dispatch effect below.
@@ -137,6 +171,10 @@ export function useToolWorker() {
   const degradeToMainThread = useCallback(
     (notice: string, inFlightError?: string) => {
       degradedRef.current = true;
+      workerReadyRef.current = false;
+      pendingPhaseARef.current = null;
+      pendingPhaseBRef.current = null;
+      clearBootTimer();
       clearDebounce();
       clearResolveDebounce();
       clearWatchdog();
@@ -156,6 +194,7 @@ export function useToolWorker() {
       setMainThreadRetry((n) => n + 1);
     },
     [
+      clearBootTimer,
       clearDebounce,
       clearResolveDebounce,
       clearWatchdog,
@@ -165,7 +204,7 @@ export function useToolWorker() {
       setResolveStatus,
       setErrorMessage,
       announceStatus,
-    ]
+    ],
   );
 
   const handleResult = useCallback(
@@ -185,15 +224,28 @@ export function useToolWorker() {
         successAnnounceTimerRef.current = null;
         const { metrics } = result;
         announceStatus(
-          `Analysis complete — ${metrics.characterCount} characters, ${metrics.wordCount} words, ${metrics.byteCount} bytes`
+          `Analysis complete — ${metrics.characterCount} characters, ${metrics.wordCount} words, ${metrics.byteCount} bytes`,
         );
       }, SUCCESS_ANNOUNCE_DEBOUNCE_MS);
     },
-    [applyResult, announceStatus, clearSuccessAnnouncement]
+    [applyResult, announceStatus, clearSuccessAnnouncement],
   );
 
   const onWorkerMessage = useCallback(
-    (event: MessageEvent<WorkerOutputPayload>) => {
+    (event: MessageEvent<WorkerOutputPayload | WorkerReadyMessage>) => {
+      if (isReadyMessage(event.data)) {
+        // The worker has loaded: release whatever was held for it. Only now
+        // does a Phase-A send arm its watchdog.
+        workerReadyRef.current = true;
+        clearBootTimer();
+        const sendA = pendingPhaseARef.current;
+        const sendB = pendingPhaseBRef.current;
+        pendingPhaseARef.current = null;
+        pendingPhaseBRef.current = null;
+        sendA?.();
+        sendB?.();
+        return;
+      }
       const payload = event.data;
       // Stale-response guard FIRST: a late reply must never touch state or
       // the watchdog protecting a newer dispatch.
@@ -202,7 +254,7 @@ export function useToolWorker() {
       if (payload.phase === "A") {
         dispatchRef.current = acceptDispatch(
           { id: payload.id, phase: "A" },
-          dispatchRef.current
+          dispatchRef.current,
         );
       }
 
@@ -211,13 +263,20 @@ export function useToolWorker() {
         // The budget verdict drives the banner's tone: `limited` when the
         // hourly floor was reached, `offline` on a network failure.
         setResolveStatus(
-          resolveStatusFor(payload.rateLimit, payload.resolutions ?? [])
+          resolveStatusFor(payload.rateLimit, payload.resolutions ?? []),
         );
         setRateLimit(payload.rateLimit);
       }
       handleResult(payload);
     },
-    [clearWatchdog, handleResult, setIsProcessing, setResolveStatus, setRateLimit]
+    [
+      clearBootTimer,
+      clearWatchdog,
+      handleResult,
+      setIsProcessing,
+      setResolveStatus,
+      setRateLimit,
+    ],
   );
 
   const onWorkerError = useCallback(() => {
@@ -226,7 +285,7 @@ export function useToolWorker() {
     const hadInFlight = watchdogIdRef.current !== -1;
     degradeToMainThread(
       "Worker unavailable — computing on main thread",
-      hadInFlight ? WORKER_CRASH_ERROR : undefined
+      hadInFlight ? WORKER_CRASH_ERROR : undefined,
     );
   }, [degradeToMainThread]);
 
@@ -235,7 +294,7 @@ export function useToolWorker() {
     const hadInFlight = watchdogIdRef.current !== -1;
     degradeToMainThread(
       "Worker unavailable — computing on main thread",
-      hadInFlight ? WORKER_CRASH_ERROR : undefined
+      hadInFlight ? WORKER_CRASH_ERROR : undefined,
     );
   }, [degradeToMainThread]);
 
@@ -243,18 +302,29 @@ export function useToolWorker() {
   const spawnWorker = useCallback((): Worker | null => {
     try {
       const worker = new Worker(
-        new URL("../_workers/compute.worker.ts", import.meta.url)
+        new URL("../_workers/compute.worker.ts", import.meta.url),
       );
       worker.onmessage = onWorkerMessage;
       worker.onerror = onWorkerError;
       worker.onmessageerror = onWorkerMessageError;
+      workerReadyRef.current = false;
+      if (bootTimerRef.current) clearTimeout(bootTimerRef.current);
+      bootTimerRef.current = setTimeout(() => {
+        bootTimerRef.current = null;
+        if (!workerReadyRef.current) degradeToMainThread(WORKER_BOOT_NOTICE);
+      }, WORKER_BOOT_TIMEOUT_MS);
       return worker;
     } catch (err) {
       console.warn("Worker initialization failed:", err);
       degradeToMainThread("Worker unavailable — computing on main thread");
       return null;
     }
-  }, [onWorkerMessage, onWorkerError, onWorkerMessageError, degradeToMainThread]);
+  }, [
+    onWorkerMessage,
+    onWorkerError,
+    onWorkerMessageError,
+    degradeToMainThread,
+  ]);
 
   useEffect(() => {
     const worker = spawnWorker();
@@ -264,6 +334,7 @@ export function useToolWorker() {
     return () => {
       workerRef.current?.terminate();
       workerRef.current = null;
+      clearBootTimer();
       clearDebounce();
       clearResolveDebounce();
       clearWatchdog();
@@ -272,6 +343,7 @@ export function useToolWorker() {
       resolveControllerRef.current = null;
     };
   }, [
+    clearBootTimer,
     spawnWorker,
     setWorkerAvailable,
     clearDebounce,
@@ -303,38 +375,45 @@ export function useToolWorker() {
         const dispatch = truncateForDispatch(inputRef.current.source);
 
         // Watchdog: a native parse cannot be interrupted mid-run, so the worst
-        // case is terminate + respawn with a friendly verdict.
-        watchdogIdRef.current = id;
-        watchdogRef.current = setTimeout(() => {
-          worker.terminate();
-          if (workerRef.current === worker) workerRef.current = null;
-          clearWatchdog();
+        // case is terminate + respawn with a friendly verdict. It is armed
+        // only when the message is actually sent to a READY worker.
+        sendWhenReady("A", () => {
+          if (id !== requestIdRef.current || workerRef.current !== worker)
+            return;
+          watchdogIdRef.current = id;
+          watchdogRef.current = setTimeout(() => {
+            worker.terminate();
+            if (workerRef.current === worker) workerRef.current = null;
+            clearWatchdog();
 
-          // Bump the request id so any zombie response is stale by
-          // definition, then replace the worker unless already degraded.
-          requestIdRef.current++;
-          dispatchRef.current = {
-            requestId: requestIdRef.current,
-            lastPhaseRank: 0,
-          };
-          if (!degradedRef.current) {
-            workerRef.current = spawnWorker();
-            if (workerRef.current) setWorkerAvailable(true);
-          }
+            // Bump the request id so any zombie response is stale by
+            // definition, then replace the worker unless already degraded.
+            requestIdRef.current++;
+            dispatchRef.current = {
+              requestId: requestIdRef.current,
+              lastPhaseRank: 0,
+            };
+            if (!degradedRef.current) {
+              workerRef.current = spawnWorker();
+              if (workerRef.current) setWorkerAvailable(true);
+            }
 
-          setIsProcessing(false);
-          setErrorMessage(ANALYZE_TIMEOUT_ERROR);
-          announceStatus("Execution aborted — input was too complex to analyze");
-        }, WATCHDOG_MS);
+            setIsProcessing(false);
+            setErrorMessage(ANALYZE_TIMEOUT_ERROR);
+            announceStatus(
+              "Execution aborted — input was too complex to analyze",
+            );
+          }, WATCHDOG_MS);
 
-        worker.postMessage({
-          id,
-          phase: "A",
-          source: dispatch.text,
-          originalByteCount: dispatch.originalBytes,
-          resolve: false,
-          budget: useToolStore.getState().rateLimit,
-        } satisfies WorkerInputPayload);
+          worker.postMessage({
+            id,
+            phase: "A",
+            source: dispatch.text,
+            originalByteCount: dispatch.originalBytes,
+            resolve: false,
+            budget: useToolStore.getState().rateLimit,
+          } satisfies WorkerInputPayload);
+        });
         return;
       }
 
@@ -364,7 +443,7 @@ export function useToolWorker() {
           clearSuccessAnnouncement();
           setIsProcessing(false);
           setErrorMessage(
-            err instanceof Error ? err.message : "Unexpected processing error"
+            err instanceof Error ? err.message : "Unexpected processing error",
           );
           announceStatus("Processing failed");
         }
@@ -378,6 +457,7 @@ export function useToolWorker() {
   }, [
     source,
     mainThreadRetry,
+    sendWhenReady,
     handleResult,
     spawnWorker,
     setIsProcessing,
@@ -419,14 +499,17 @@ export function useToolWorker() {
       setResolveStatus("running");
 
       if (!degradedRef.current && worker) {
-        worker.postMessage({
-          id,
-          phase: "B",
-          source: dispatch.text,
-          originalByteCount: dispatch.originalBytes,
-          resolve: true,
-          budget: useToolStore.getState().rateLimit,
-        } satisfies WorkerInputPayload);
+        sendWhenReady("B", () => {
+          if (controller.signal.aborted || workerRef.current !== worker) return;
+          worker.postMessage({
+            id,
+            phase: "B",
+            source: dispatch.text,
+            originalByteCount: dispatch.originalBytes,
+            resolve: true,
+            budget: useToolStore.getState().rateLimit,
+          } satisfies WorkerInputPayload);
+        });
         return;
       }
 
@@ -448,10 +531,12 @@ export function useToolWorker() {
             budget: useToolStore.getState().rateLimit,
             signal: controller.signal,
             deadlineMs: RESOLVE_BUDGET_MS,
-          }
+          },
         );
         if (controller.signal.aborted) return;
-        setResolveStatus(resolveStatusFor(merged.rateLimit, merged.resolutions));
+        setResolveStatus(
+          resolveStatusFor(merged.rateLimit, merged.resolutions),
+        );
         setRateLimit(merged.rateLimit);
         handleResult({ ...merged, id, phase: "B" });
       })();
@@ -464,6 +549,7 @@ export function useToolWorker() {
     source,
     autoResolve,
     resolveRequestedAt,
+    sendWhenReady,
     clearResolveDebounce,
     handleResult,
     setResolveStatus,
@@ -474,7 +560,7 @@ export function useToolWorker() {
 /** Phase B settled: `limited` when the hourly floor was hit, else `idle`. */
 function resolveStatusFor(
   budget: RateLimitState,
-  resolutions: readonly Resolution[]
+  resolutions: readonly Resolution[],
 ): "idle" | "limited" | "offline" {
   if (budget.remaining <= RATE_LIMIT_RESERVE) return "limited";
   if (resolutions.some((resolution) => resolution.status === "network-error")) {

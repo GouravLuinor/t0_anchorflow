@@ -16,56 +16,45 @@ You are the Staff Design Engineer and Lead Systems Architect for **Anchorflow**
 - **Port**: **3004** (pinned in `package.json`, `playwright.config.ts`,
   `Dockerfile`, `docker-compose.yml`, `Caddyfile`, `README.md`; never 3000)
 - **Route**: `/tools/anchorflow` (root `app/page.tsx` is a server `redirect()`)
-- **Subdomain / PM2**: `anchor.norai.tech` · `anchor-norai`
+- **Subdomain / PM2**: `anchorflow.norai.tech` · `anchor-norai`
 - **Design Philosophy**: Zero-bloat, client-side first, sub-millisecond tactile
-  feedback, machined Linear/Raycast aesthetic implemented by the **Matchlight**
-  design system (see §2). One authored motion. Mono means machine data.
+  feedback, a security-printing world implemented by the **Certified Copy**
+  design system (see §2.1). One authored motion. Mono means machine data.
 
 ---
 
 ## 2. Non-Negotiable Engineering Axioms
 
-### 2.1 Matchlight surface ladder (reused verbatim from the sibling bar)
+### 2.1 Certified Copy (the visual world)
 
-Do not invent a second visual language. Tokens live in `app/globals.css`
-(`:root` light, `.dark` overrides on the same variable names),
-`tailwind.config.ts`, and `design_tokens.json`. The craft-floor rules in
-`docs/DESIGN.md` §8 are binding.
+Anchorflow's world is security printing: the page is a certified copy of your
+workflow. `DESIGN.md` (root) and `.impeccable/design.json` are the source of
+truth; tokens live in `app/globals.css` (`:root` light, `.dark` on the same
+names) as RGB triplets, and `tailwind.config.ts` **replaces** `theme.colors`
+with only these names, so a raw palette class (`zinc-400`, `lime-500`) does not
+compile.
 
-All values below are verified against `app/globals.css` on 2026-10-11 — this is
-the SHIPPED table, and `app/tools/anchorflow/__tests__/contrast.test.ts` parses
-that file to assert the ratios.
-
-- **Canvas** (warm porcelain light / deep pine dark): `#fafaf7` / `#0c0e0b`
-- **Ink**: `#181a15` / `#eceee4` — measured **16.8:1** light / **16.5:1** dark on
-  canvas (WCAG AAA)
-- **Surfaces** (space-separated RGB triplets in the CSS, hex here):
-  `surface-base` `#ffffff` / `#12140f` (`18 20 15`) · `surface-subtle` `#f4f4ee` /
-  `#171a14` · `surface-default` `#ffffff` / `#1b1e18` · `surface-elevated`
-  `#fafaf6` / `#242820`
-- **Hairlines**: `surface-border` `#e2e2d8` / `#2e3328`; hover
-  `surface-borderHover` `#cbcbbd` / `#42493a`
-- **One accent**: `brand-lime` `#3f6212` / `#a3e635` (`163 230 53`) — marks pin /
-  primary / active / the privacy promise, and nothing else
-- **Semantic state only**: `brand-violet` = **pending resolution + minor
-  severity** · `brand-amber` = warn / degraded / truncation / the `uses:` scan cap
-  / rate-limit · `brand-rose` = error finding / copy-failure toast / a ref
-  refused by the path-safety gate
-- **Inverted zinc is the only neutral.** `text-zinc-100` → headings · `-300` →
-  secondary · `-400` → muted · `-500` → faint mono. No raw named palettes.
-  Measured on the surfaces those roles render on: `-300` 10.3:1/11.2:1 ·
-  `-400` 6.5:1/7.5:1 · `-500` 4.6:1/5.1:1 (AA, by design — they are
-  decoration-grade hints). `text-zinc-600` is retired from the separators
-  (3.0:1 / 3.6:1 — below AA).
-- **Reserved, not currently mounted**: the `badge`, `input`, `textarea` and
-  `dropdown-menu` primitives under `components/ui/` ship no use. They are kept
-  in the ladder's language, not deleted as dead weight.
-- **Craft floor**: no eyebrow kickers (small uppercase mono labels live only
-  inside tool panes as functional measurements), no gradient text, no icon-card
-  spine, no section numbers, no decorative glass, mono never decorative.
-  `.glass-edge` is one inset hairline + one soft shadow; blur exists only in the
-  sticky header and the palette scrim.
-- **4px/8px modular grid.** Never `p-[13px]` / `w-[317px]`.
+- **Ground**: `paper` · `sheet` (the certified copy) · `sunk` (code wells) ·
+  `band` (header/footer) · rules `line` / `line-strong`.
+- **Ink**: `ink` · `ink-2` · `ink-3`. Every text role clears 4.5:1 on paper,
+  sheet, band and the composited wells/tints in both themes — asserted by
+  `app/tools/anchorflow/__tests__/contrast.test.ts`, which parses globals.css.
+- **One job per colour**: `seal` = pinned / primary / focus · `moving` = an
+  unpinned (floating) ref · `critical` / `major` = finding grades, a refused
+  ref, the scan cap, the rate limit, truncation.
+- **Type**: Schibsted Grotesk for UI; Martian Mono at `font-stretch: 87.5%` for
+  machine data only (YAML, SHAs, refs, receipts). `.figures` for tabular
+  numerals.
+- **Shape**: 2px radius, no panel shadows (`shadow-pop` is for overlays only),
+  1px rules. The guilloché rule sits under the header and above the footer and
+  nowhere else.
+- **Signature**: every pinned row wears a guilloché seal drawn from its SHA
+  (`_lib/seal.ts`, pure + tested; `_components/Seal.tsx`). A pin that lands in
+  this session draws itself in (420 ms stroke, the one authored motion). An
+  unpinned ref wears an open (dashed) seal.
+- **Craft floor**: no eyebrows, no gradient text, no glass, no icon-card grids,
+  no section numbers, no hero metrics, no coloured border-left over 1px, no
+  emoji icons. Mono is never decorative.
 
 ### 2.2 Dual-theme requirement
 
@@ -87,20 +76,14 @@ All parsing, computation and formatting MUST execute inside
 synchronous main-thread fallback shares the exact same core, so semantics cannot
 drift — see `docs/blueprint.md` §2.
 
-### 2.4 Five interaction states on all controls
+### 2.4 Interaction states on all controls
 
-Every button, card, tab, keycap, switch, input and menu item implements:
-
-1. `Idle` — `border-surface-border bg-surface-subtle text-zinc-400`
-2. `Hover` — `hover:border-surface-borderHover hover:bg-surface-elevated hover:text-zinc-100`
-3. `Active / Pressed` — `active:scale-[0.97]` (`[0.98]` on larger controls)
-4. `Focused` — `focus-visible:ring-2 focus-visible:ring-brand-lime/70 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas`
-5. `Disabled / Loading` — `disabled:cursor-not-allowed disabled:opacity-50`
-
-Transitions are `duration-150 ease-out-expo` restricted to the properties that
-change, and collapse to 0.01 ms under `prefers-reduced-motion`. The single ring
-value is `ring-brand-lime/70` on controls and `/40` on the `<details>` summary;
-pick one per role and keep `docs/DESIGN.md` in agreement.
+Every button, tab, switch, input and menu item has idle, hover, pressed,
+`:focus-visible` (the global 2px `seal` outline, offset 2px) and disabled
+(`disabled:cursor-not-allowed disabled:opacity-50`) states. Transitions are
+`duration-150` on the properties that change, and the global kill-switch in
+`globals.css` collapses every animation and transition under
+`prefers-reduced-motion`.
 
 ### 2.5 The worker contract (do not weaken)
 
@@ -109,6 +92,11 @@ pick one per role and keep `docs/DESIGN.md` in agreement.
   dropped. Every reply carries the full envelope.
 - **Adaptive debounce**: ≤ 5,000 chars → 0 ms · > 5,000 → 40 ms · > 20,000 →
   120 ms.
+- **Readiness handshake.** The worker posts `{type:"ready"}` when its module
+  has evaluated; dispatches are held until then, the watchdog arms only on a
+  real send, and a worker that never becomes ready degrades to the main thread
+  after 15 s (`WORKER_BOOT_TIMEOUT_MS`). A slow first load is never a false
+  timeout.
 - **Watchdog 1.5 s on Phase A only.** Terminate + respawn, bump the request id,
   settle the friendly error, announce. Phase B is network work: abortable, never
   watchdogged.

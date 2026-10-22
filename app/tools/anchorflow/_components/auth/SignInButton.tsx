@@ -37,7 +37,7 @@ export function SignInButton() {
         aria-label={
           isAuthenticated ? `Account: ${email ?? "signed in"}` : "Sign in"
         }
-        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-surface-border bg-surface-subtle px-2.5 text-xs font-medium text-zinc-300 transition-all duration-150 ease-out-expo hover:border-surface-borderHover hover:bg-surface-elevated hover:text-zinc-200 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime/70 disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex h-9 items-center gap-1.5 rounded px-2.5 text-sm font-semibold text-ink-2 transition-colors duration-150 ease-out-expo hover:bg-sunk hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isAuthenticated ? (
           <UserRound className="h-3.5 w-3.5" aria-hidden="true" />
@@ -52,15 +52,14 @@ export function SignInButton() {
       {showNotice && !isConfigured && (
         <div
           role="status"
-          className="fixed bottom-4 left-4 right-4 z-50 mx-auto w-full max-w-sm rounded-xl border border-surface-border bg-surface-default p-4 text-sm text-zinc-200 glass-edge"
+          className="fixed bottom-4 left-4 right-4 z-50 mx-auto w-full max-w-sm rounded border border-line-strong bg-sheet p-4 text-sm text-ink shadow-pop"
         >
-          <p className="font-semibold text-zinc-100">
+          <p className="font-bold text-ink">
             Sign-in isn&rsquo;t enabled yet
           </p>
-          <p className="mt-1 text-xs leading-relaxed text-zinc-400">
+          <p className="mt-1 leading-relaxed text-ink-2">
             Anchorflow runs entirely in your browser, so pinning, auditing and
-            copying never need an account. Connecting a Supabase project only
-            adds cross-device history sync.
+            copying never need an account.
           </p>
         </div>
       )}
@@ -68,15 +67,7 @@ export function SignInButton() {
   );
 }
 
-/**
- * The Google provider mark, monochrome. The four brand fills (#4285F4 /
- * #34A853 / #FBBC05 / #EA4335) are NOT used: Matchlight spends one accent and
- * inverts zinc as its only neutral, so a multi-hue glyph would be the one
- * place the ladder broke. `currentColor` keeps it legible on both surfaces and
- * lets the mark inherit the button's own five states (documented in
- * `docs/DESIGN.md` §2 as the provider-mark exception: shape is the provider's,
- * colour is ours).
- */
+/** The Google provider mark in currentColor: the shape is theirs, the ink is ours. */
 export function GoogleMark() {
   return (
     <svg

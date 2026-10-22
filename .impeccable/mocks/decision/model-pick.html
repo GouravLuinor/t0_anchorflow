@@ -1,0 +1,61 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Stencil+Display:wght@700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0}
+body{width:1440px;height:900px;overflow:hidden;background:#f4f5f7;color:#14213d;font:15px/1.5 "Hanken Grotesk",sans-serif}
+.mono{font-family:"JetBrains Mono",monospace;font-size:12px}
+.band{background:#14213d;color:#fff;padding:0 48px 30px}
+header{height:60px;display:flex;align-items:center;gap:40px}
+.brand{font-family:"Big Shoulders Stencil Display";font-weight:800;font-size:26px;letter-spacing:.04em}
+nav{display:flex;gap:28px;color:#c9d2e6;font-weight:500}
+.r{margin-left:auto;color:#c9d2e6;font-size:13px}
+h1{font-family:"Big Shoulders Stencil Display";font-size:54px;line-height:1;letter-spacing:.01em;margin-top:22px}
+.sub{color:#c9d2e6;margin-top:10px;max-width:700px}
+.work{display:grid;grid-template-columns:40fr 60fr;margin:28px 48px 0;background:#fff;border:1px solid #d5d9e2;height:610px}
+.ph{padding:12px 18px;border-bottom:1px solid #e3e6ec;font-weight:700;font-size:13px;display:flex;justify-content:space-between}
+pre{padding:14px 18px;font-family:"JetBrains Mono",monospace;font-size:11.5px;line-height:1.75;color:#2a3654}
+.l{border-right:1px solid #e3e6ec}
+.res{padding:20px 24px}
+.v{font-size:20px;font-weight:700}
+.v b{color:#e2531b}
+.act{display:flex;gap:14px;align-items:center;margin:14px 0 18px}
+.btn{background:#e2531b;color:#fff;font-weight:700;padding:11px 18px}
+.d{font-size:12.5px;color:#55607a}
+.row{display:grid;grid-template-columns:120px 1fr 80px;gap:14px;align-items:center;padding:10px 0;border-bottom:1px solid #e3e6ec}
+.tag{display:inline-flex;align-items:center;gap:6px;font-family:"JetBrains Mono";font-size:11px;padding:3px 8px 3px 4px;border-radius:2px}
+.tag i{width:10px;height:10px;border-radius:50%;background:#fff}
+.sealed{background:#e2531b;color:#fff}.open{border:1px dashed #e2531b;color:#b2400f}
+.tabs{display:flex;gap:26px;margin-top:16px;font-weight:600;color:#55607a}.tabs .on{color:#14213d;border-bottom:2px solid #e2531b}
+</style></head><body>
+<div class="band">
+<header><span class="brand">ANCHORFLOW</span><nav><span>Pin</span><span>Compare</span><span>Guide</span><span>FAQ</span></nav><span class="r">Built by Nor AI</span></header>
+<h1>PIN GITHUB ACTIONS TO COMMIT SHAS</h1>
+<p class="sub">Every action in your workflow, sealed to the exact commit its tag points at today. Computed in your browser; the file is never uploaded.</p>
+</div>
+<div class="work">
+<div class="l"><div class="ph"><span>Manifest source · ci.yml</span><span class="mono">60 lines</span></div>
+<pre>name: ci
+on: [push, pull_request]
+permissions:
+  contents: write
+jobs:
+  build:
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4.2.0
+  verify:
+    steps:
+      - uses: actions/checkout@11bd719…  # v4.2.2
+  label:
+    steps:
+      - uses: actions/github-script@v7</pre></div>
+<div class="res"><p class="v"><b>4 unsealed containers</b> · 1 critical injection · 3 over-broad grants</p>
+<div class="act"><span class="btn">Seal 4 containers</span><span class="d">4 read-only requests to api.github.com</span></div>
+<div class="row"><span class="tag open"><i style="background:none;border:1px solid #e2531b"></i>UNSEALED @v4</span><span class="mono">actions/checkout</span><span class="mono d">line 13</span></div>
+<div class="row"><span class="tag open"><i style="background:none;border:1px solid #e2531b"></i>UNSEALED @v4.2.0</span><span class="mono">actions/setup-node</span><span class="mono d">line 14</span></div>
+<div class="row"><span class="tag sealed"><i></i>11BD719</span><span class="mono">actions/checkout · v4.2.2</span><span class="mono d">line 18</span></div>
+<div class="row"><span class="tag open"><i style="background:none;border:1px solid #e2531b"></i>UNSEALED @v7</span><span class="mono">actions/github-script</span><span class="mono d">line 21</span></div>
+<div class="tabs"><span class="on">Findings 4</span><span>Declared grants</span><span>Diff</span><span>Receipts</span></div>
+</div></div>
+</body></html>

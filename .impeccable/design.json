@@ -1,0 +1,240 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-22T08:23:20.351285+00:00",
+  "title": "Design System: Anchorflow — Certified Copy",
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "neutral",
+        "displayName": "Security paper",
+        "canonical": "rgb(var(--paper))",
+        "light": "rgb(238 242 236)",
+        "dark": "rgb(13 22 19)"
+      },
+      "sheet": {
+        "role": "neutral",
+        "displayName": "Certificate sheet",
+        "canonical": "rgb(var(--sheet))",
+        "light": "rgb(251 252 250)",
+        "dark": "rgb(18 29 25)"
+      },
+      "sunk": {
+        "role": "neutral",
+        "displayName": "Code well",
+        "canonical": "rgb(var(--sunk))",
+        "light": "rgb(227 233 225)",
+        "dark": "rgb(10 17 14)"
+      },
+      "band": {
+        "role": "neutral",
+        "displayName": "Header band",
+        "canonical": "rgb(var(--band))",
+        "light": "rgb(230 236 228)",
+        "dark": "rgb(16 27 23)"
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "rgb(var(--line))",
+        "light": "rgb(201 211 200)",
+        "dark": "rgb(36 54 48)"
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "Control rule",
+        "canonical": "rgb(var(--line-strong))",
+        "light": "rgb(159 178 163)",
+        "dark": "rgb(53 80 70)"
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Intaglio ink",
+        "canonical": "rgb(var(--ink))",
+        "light": "rgb(16 35 28)",
+        "dark": "rgb(227 236 230)"
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Secondary ink",
+        "canonical": "rgb(var(--ink-2))",
+        "light": "rgb(58 85 73)",
+        "dark": "rgb(169 189 178)"
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "Muted ink",
+        "canonical": "rgb(var(--ink-3))",
+        "light": "rgb(83 107 96)",
+        "dark": "rgb(138 161 150)"
+      },
+      "seal": {
+        "role": "primary",
+        "displayName": "Seal green",
+        "canonical": "rgb(var(--seal))",
+        "light": "rgb(31 107 79)",
+        "dark": "rgb(98 199 156)"
+      },
+      "on-seal": {
+        "role": "primary",
+        "displayName": "On seal",
+        "canonical": "rgb(var(--on-seal))",
+        "light": "rgb(255 255 255)",
+        "dark": "rgb(6 20 14)"
+      },
+      "moving": {
+        "role": "secondary",
+        "displayName": "Moving indigo",
+        "canonical": "rgb(var(--moving))",
+        "light": "rgb(75 79 168)",
+        "dark": "rgb(165 168 242)"
+      },
+      "critical": {
+        "role": "error",
+        "displayName": "Vermilion",
+        "canonical": "rgb(var(--critical))",
+        "light": "rgb(181 50 27)",
+        "dark": "rgb(255 143 115)"
+      },
+      "major": {
+        "role": "warning",
+        "displayName": "Ochre",
+        "canonical": "rgb(var(--major))",
+        "light": "rgb(138 90 0)",
+        "dark": "rgb(233 182 90)"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The single H1, phrased as the search intent."
+      },
+      "heading": {
+        "displayName": "Section heading",
+        "purpose": "Compare, guide and FAQ headings."
+      },
+      "verdict": {
+        "displayName": "Verdict",
+        "purpose": "The one-sentence answer at the top of the certified copy."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "All prose and UI labels."
+      },
+      "data": {
+        "displayName": "Machine data",
+        "purpose": "YAML, SHAs, refs, endpoints, receipts, line numbers. Never labels."
+      }
+    },
+    "shadows": [
+      {
+        "name": "pop",
+        "value": "0 18px 48px -12px rgb(var(--ink) / 0.28), 0 2px 6px rgb(var(--ink) / 0.08)",
+        "purpose": "Overlays only: command palette, dialogs, toasts."
+      }
+    ],
+    "motion": [
+      {
+        "name": "seal-draw",
+        "value": "420ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "A seal drawing itself in when its pin lands. The one authored motion."
+      },
+      {
+        "name": "state",
+        "value": "150ms ease-out",
+        "purpose": "Colour transitions on controls."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one next step: Resolve & pin, or Copy pinned file.",
+      "html": "<button class=\"af-btn\">Resolve &amp; pin 4 refs</button>",
+      "css": ".af-btn{font:600 14px/1 'Schibsted Grotesk',system-ui,sans-serif;height:40px;padding:0 16px;border-radius:2px;border:1px solid rgb(var(--seal));background:rgb(var(--seal));color:rgb(var(--on-seal));cursor:pointer;transition:background-color 150ms ease-out}.af-btn:hover{background:rgb(var(--seal) / 0.9)}.af-btn:focus-visible{outline:2px solid rgb(var(--seal));outline-offset:2px}"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary actions such as Copy file.",
+      "html": "<button class=\"af-btn-o\">Copy file</button>",
+      "css": ".af-btn-o{font:600 14px/1 'Schibsted Grotesk',system-ui,sans-serif;height:40px;padding:0 16px;border-radius:2px;border:1px solid rgb(var(--line-strong));background:transparent;color:rgb(var(--ink));cursor:pointer}.af-btn-o:hover{background:rgb(var(--sunk))}"
+    },
+    {
+      "name": "Ledger Row",
+      "kind": "custom",
+      "refersTo": "ledger-row",
+      "description": "One uses: line: seal, action@ref, state, line number.",
+      "html": "<div class=\"af-row\"><span class=\"af-seal\"></span><div><p class=\"af-ref\">actions/checkout<span>@v4</span></p><p class=\"af-state\">Moving ref · not pinned</p></div><span class=\"af-line\">line 17</span></div>",
+      "css": ".af-row{display:grid;grid-template-columns:28px 1fr auto;gap:12px;padding:10px 0;border-top:1px solid rgb(var(--line));font-family:'Schibsted Grotesk',system-ui,sans-serif}.af-seal{width:28px;height:28px;border-radius:9999px;border:1.5px dashed rgb(var(--moving))}.af-ref{margin:0;font:12px/1.6 'Martian Mono',monospace;font-stretch:87.5%;color:rgb(var(--ink))}.af-ref span{color:rgb(var(--moving))}.af-state{margin:2px 0 0;font-size:13px;font-weight:600;color:rgb(var(--moving))}.af-line{font:11px 'Martian Mono',monospace;color:rgb(var(--ink-3))}"
+    },
+    {
+      "name": "Receipt",
+      "kind": "custom",
+      "refersTo": "receipt",
+      "description": "How one pin was resolved.",
+      "html": "<div class=\"af-receipt\">GET /repos/actions/checkout/git/ref/tags/v4 → 11d5960a3267… (200)</div>",
+      "css": ".af-receipt{padding:8px 12px;border:1px solid rgb(var(--line));border-radius:2px;background:rgb(var(--sunk) / 0.7);font:11px/1.6 'Martian Mono',monospace;font-stretch:87.5%;color:rgb(var(--ink-2))}"
+    }
+  ],
+  "narrative": {
+    "northStar": "A certified copy of your workflow.",
+    "overview": "Anchorflow is security printing. Pale tinted paper, intaglio ink, fine guilloché lattices and a seal that says this copy matches the original. Pinning an action trades a ref that can move for a commit that cannot; the page hands back a certified copy with a seal on every pin and a receipt for how each was resolved.",
+    "keyCharacteristics": [
+      "Security-paper green ground, intaglio-green ink, one seal green.",
+      "Every pinned row wears a guilloché seal generated from its own SHA.",
+      "Machine data in condensed Martian Mono; everything else in Schibsted Grotesk.",
+      "2px corners, 1px rules, no panel shadows.",
+      "A verdict sentence leads; the ledger and the report follow."
+    ],
+    "rules": [
+      {
+        "name": "The One Job Rule",
+        "section": "Colors",
+        "body": "Seal green means pinned or primary; indigo means moving; vermilion and ochre are finding grades. No colour is borrowed for decoration."
+      },
+      {
+        "name": "The Measured Contrast Rule",
+        "section": "Colors",
+        "body": "Every text role clears 4.5:1 on paper, sheet, band and the composited wells and tints, in both themes. contrast.test.ts parses globals.css and fails the build when one does not."
+      },
+      {
+        "name": "The Machine Data Rule",
+        "section": "Typography",
+        "body": "Mono means a machine wrote it. A label, a heading or a button is never mono."
+      }
+    ],
+    "dos": [
+      "Lead the certified copy with one sentence and one next step.",
+      "Say loading when loading, and name the error and where it is.",
+      "Show the receipt for every network-resolved pin.",
+      "Keep every claim in the comparison true of the category, not a named brand."
+    ],
+    "donts": [
+      "Use eyebrows, icon-card grids, hero metrics, 01/02 numbering, gradient text, glass, or a coloured border-left over 1px.",
+      "Use the guilloché pattern as a background.",
+      "Use mono for labels or headings.",
+      "Open a modal the visitor did not ask for."
+    ]
+  }
+}

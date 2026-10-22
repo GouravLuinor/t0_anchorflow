@@ -4,27 +4,28 @@ import { test, expect, type Locator, type Page } from "@playwright/test";
  * Anchorflow smoke & journey suite.
  *
  * The product lives at `/tools/anchorflow` (root `app/page.tsx` server-
- * redirects into it). The page is one centered `max-w-7xl` host: sticky
- * SiteHeader → station (single <h1> + trust pills) → one workstation card
- * (TopToolbar + RawEditorPane | DiagnosticPane) → CompetitorMatrix (#matrix)
- * → KnowledgeHub (#guide) → FaqSection (#faq) → StudioFooter, with the ⌘K
- * command palette, the sign-in modal, the live region and the toaster mounted
- * globally.
+ * redirects into it). The page is one centered host: sticky SiteHeader →
+ * the single <h1> + three promises → one workstation (WorkflowEditor |
+ * CertifiedCopy: verdict, uses ledger, report tabs) → CompareSection
+ * (#compare) → GuideSection (#guide) → FaqSection (#faq) → SiteFooter, with
+ * the ⌘K command palette, the sign-in modal, the live region and the toaster
+ * mounted globally.
  *
  * The compute pipeline is real: every keystroke dispatches to
  * `_workers/compute.worker.ts` behind a monotonic-id stale guard, and the
- * DiagnosticPane renders the worker's payload. The payload now carries the
+ * certified copy renders the worker's payload. The payload now carries the
  * OFFLINE HARDENER CORE: the structural `uses:` classification (per-node class
  * badge + `# line N · jobs.<id>.steps[i].uses` source), the byte-identical
  * rewritten YAML and the red/green diff of that rewrite. These journeys assert
  * exactly that, alongside the shell and keyboard contracts.
  *
  * Scoping notes that keep these specs stable:
- *   - `#workstation` is the single card holding the toolbar AND both panes.
+ *   - `#workstation` holds the editor AND the certified copy.
+ *   - The report is four Radix tabs (Findings · Token grants · Pinned file ·
+ *     Diff), all force-mounted: text assertions read hidden panels, but a
+ *     visibility assertion opens the tab first (`openTab`).
  *   - Radix dropdowns, the command palette and the toaster are portaled to
  *     <body>, so they are queried at page level, not inside #workstation.
- *   - The KnowledgeHub (#guide) renders Radix tabs too, so tabpanel queries
- *     are scoped to #workstation when needed.
  */
 
 const TOOL_URL = "/tools/anchorflow";
@@ -36,7 +37,7 @@ const COMPUTE_TIMEOUT = 15_000;
 const MOD = "ControlOrMeta";
 
 // ── Stable selectors ─────────────────────────────────────────────────────────
-/** The single workstation card: TopToolbar + both panes + keycap footer. */
+/** The workstation: the editor + the certified copy. */
 const station = (page: Page) => page.locator("#workstation");
 const sourceInput = (page: Page) => page.locator("#tool-source-input");
 const diagnosticEcho = (page: Page) => page.getByTestId("diagnostic-echo");
@@ -45,6 +46,21 @@ const usesRow = (page: Page) => page.getByTestId("uses-row");
 /** The red/green unified diff section. */
 const diffSection = (page: Page) =>
   page.locator('section[aria-label="Unified diff"]');
+/** The certified copy's settled stamp ("computed in this tab · N ms"). */
+const settled = (page: Page) => station(page).getByText(/computed in this tab/);
+/** The parse-error headline the certified copy settles on. */
+const PARSE_FAILED = /isn.t a workflow Anchorflow can read yet/;
+
+/** Open one of the four report tabs (Findings · Token grants · Pinned file · Diff). */
+async function openTab(page: Page, name: RegExp) {
+  await station(page).getByRole("tab", { name }).click();
+}
+
+/** Long finding lists collapse after four; expand so every item is in the DOM. */
+async function showAllFindings(page: Page) {
+  const more = station(page).getByRole("button", { name: /^Show all \d+ findings/ });
+  if (await more.count()) await more.click();
+}
 
 /**
  * Controlled-React inputs only commit once the onChange → store → re-render
@@ -81,10 +97,10 @@ test.describe("Anchorflow shell journeys", () => {
   test("header, single h1, nav, theme toggle and sign-in are present", async ({
     page,
   }) => {
-    // Exactly one <h1>, named Anchorflow.
+    // Exactly one <h1>, phrased as the search intent.
     await expect(page.locator("h1")).toHaveCount(1);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      /Anchorflow/i
+      /Pin GitHub Actions to commit SHAs/i
     );
 
     const header = page.getByRole("banner");
@@ -93,10 +109,10 @@ test.describe("Anchorflow shell journeys", () => {
     // In-page anchors to the station / comparison / guide / faq sections.
     const nav = header.getByRole("navigation");
     await expect(
-      nav.getByRole("link", { name: /workstation/i })
+      nav.getByRole("link", { name: /pin a workflow/i })
     ).toBeVisible();
-    await expect(nav.getByRole("link", { name: /why anchorflow/i })).toBeVisible();
-    await expect(nav.getByRole("link", { name: /guide/i })).toBeVisible();
+    await expect(nav.getByRole("link", { name: /compare/i })).toBeVisible();
+    await expect(nav.getByRole("link", { name: /guides/i })).toBeVisible();
     await expect(nav.getByRole("link", { name: /faq/i })).toBeVisible();
 
     // Brand wordmark link points home.
@@ -116,7 +132,7 @@ test.describe("Anchorflow shell journeys", () => {
     await expect(page.getByRole("banner")).toBeVisible();
     await expect(page.getByRole("contentinfo")).toBeVisible();
     await expect(
-      page.getByRole("link", { name: /skip to workstation/i })
+      page.getByRole("link", { name: /skip to the workflow/i })
     ).toHaveAttribute("href", "#workstation");
   });
 
@@ -127,26 +143,22 @@ test.describe("Anchorflow shell journeys", () => {
     const seeded = await sourceInput(page).inputValue();
     expect(seeded.length).toBeGreaterThan(200);
 
-    // The worker result mirrors into the diagnostic pane immediately.
+    // The worker result mirrors into the pinned-file view immediately.
     await expect(diagnosticEcho(page)).toContainText("name: ci", {
       timeout: COMPUTE_TIMEOUT,
     });
     await expect(diagnosticEcho(page)).toContainText("actions/checkout@v4");
 
-    // The measurement readouts are real numbers, not placeholders.
-    const chars = station(page).getByText("characters", { exact: true });
-    await expect(chars).toBeVisible({ timeout: COMPUTE_TIMEOUT });
-    await expect(
-      station(page).getByText("bytes", { exact: true })
-    ).toBeVisible();
+    // The measurement readouts under the editor are real numbers.
+    const meta = page.locator("#workflow-meta");
+    await expect(meta).toContainText(/\d[\d,]* lines/, { timeout: COMPUTE_TIMEOUT });
+    await expect(meta).toContainText(/\d[\d,]* bytes/);
 
-    // The status strip settles on Ready with the counts on it.
-    await expect(
-      station(page).getByText(/^\d+$/).first()
-    ).toBeVisible({ timeout: COMPUTE_TIMEOUT });
-    await expect(station(page).getByText("Ready")).toBeVisible({
+    // The certified copy leads with a verdict and settles its stamp.
+    await expect(station(page).getByText(/4 of 8 actions aren.t pinned to a commit/)).toBeVisible({
       timeout: COMPUTE_TIMEOUT,
     });
+    await expect(settled(page)).toBeVisible({ timeout: COMPUTE_TIMEOUT });
   });
 
   test("the D1 core classifies every seeded uses line (AC-1 · AC-14)", async ({
@@ -163,9 +175,9 @@ test.describe("Anchorflow shell journeys", () => {
     await expect(moving).toHaveCount(3);
     const movingRow = moving.filter({ hasText: "actions/checkout@v4" });
     await expect(movingRow).toBeVisible();
-    await expect(movingRow).toContainText("moving");
+    await expect(movingRow).toContainText(/moving/i);
     await expect(movingRow).toContainText(
-      "# line",
+      "line",
       { useInnerText: true }
     );
     await expect(movingRow).toContainText("jobs.build.steps[0].uses");
@@ -173,7 +185,7 @@ test.describe("Anchorflow shell journeys", () => {
     // An already-pinned SHA is lime "pinned" and never moving …
     const pinned = page.locator('[data-testid="uses-row"][data-class="sha40"]');
     await expect(pinned).toHaveCount(2);
-    await expect(pinned.first()).toContainText("pinned");
+    await expect(pinned.first()).toContainText(/pinned/i);
     await expect(pinned.first()).toHaveAttribute("data-moving", "false");
 
     // … a fixed dotted tag is a violet "pending" remoteRef …
@@ -198,10 +210,10 @@ test.describe("Anchorflow shell journeys", () => {
       })
     ).toContainText("jobs.release.uses");
 
-    // The classification summary counts every class (AC-9 change counter).
+    // The verdict counts every remote action (AC-9 change counter).
+    await expect(station(page)).toContainText(/4 of 8 actions aren.t pinned to a commit\./);
     const summary = page.locator('section[aria-label="Uses classification"]');
-    await expect(summary).toContainText("8 uses");
-    await expect(summary).toContainText("pinned");
+    await expect(summary).toContainText(/pinned/i);
   });
 
   test("the rewritten YAML is byte-identical to the seed on first paint (AC-2)", async ({
@@ -211,6 +223,7 @@ test.describe("Anchorflow shell journeys", () => {
     // editor's own text, byte for byte, comments and flow spacing included.
     const seeded = await sourceInput(page).inputValue();
     const rewritten = diagnosticEcho(page);
+    await openTab(page, /pinned file/i);
     await expect(rewritten).toBeVisible({ timeout: COMPUTE_TIMEOUT });
     expect(await rewritten.innerText()).toBe(seeded);
 
@@ -222,10 +235,11 @@ test.describe("Anchorflow shell journeys", () => {
   test("the diff is empty until refs resolve (AC-9 empty state)", async ({
     page,
   }) => {
-    await expect(diagnosticEcho(page)).toBeVisible({ timeout: COMPUTE_TIMEOUT });
+    await expect(diagnosticEcho(page)).toContainText("name: ci", { timeout: COMPUTE_TIMEOUT });
+    await openTab(page, /diff/i);
     const diff = diffSection(page);
     await expect(diff).toBeVisible();
-    await expect(diff).toContainText("No changes yet — resolve refs to pin.");
+    await expect(diff.getByTestId("diff-empty")).toContainText("No changes yet.");
     await expect(page.getByTestId("diff-changed-count")).toHaveText("0 changes");
     // The diff view itself carries no +/- lines in this state.
     await expect(diff.locator("pre")).toHaveCount(0);
@@ -237,15 +251,15 @@ test.describe("Anchorflow shell journeys", () => {
   }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     const seeded = await sourceInput(page).inputValue();
-    await expect(diagnosticEcho(page)).toBeVisible({ timeout: COMPUTE_TIMEOUT });
+    await expect(diagnosticEcho(page)).toContainText("name: ci", { timeout: COMPUTE_TIMEOUT });
 
-    const copyButton = station(page).getByRole("button", { name: /^copy$/i });
+    const copyButton = station(page).getByRole("button", { name: /^copy file$/i });
     await expect(copyButton).toBeEnabled({ timeout: COMPUTE_TIMEOUT });
     await copyButton.click();
 
     // Tactile success toast, then the clipboard holds the rewritten YAML —
     // byte-identical to the seeded workflow, because nothing is resolved yet.
-    await expect(page.getByText(/diagnostic output copied/i)).toBeVisible({
+    await expect(page.getByText(/pinned file copied/i)).toBeVisible({
       timeout: COMPUTE_TIMEOUT,
     });
     const clipboard = await page.evaluate(() =>
@@ -282,9 +296,8 @@ test.describe("Anchorflow shell journeys", () => {
     ).toContainText("actions/setup-node@11bd71901bbe5b1630ceea73d27597364c9af683");
 
     // Nothing resolved ⇒ the diff stays empty and the output stays identical.
-    await expect(diffSection(page)).toContainText(
-      "No changes yet — resolve refs to pin."
-    );
+    await expect(page.getByTestId("diff-empty")).toContainText("No changes yet.");
+    await openTab(page, /pinned file/i);
     expect(await diagnosticEcho(page).innerText()).toBe(workflow);
   });
 
@@ -295,7 +308,7 @@ test.describe("Anchorflow shell journeys", () => {
     await expect(
       station(page).getByText(/doesn't parse as a workflow YAML — 2:1/)
     ).toBeVisible({ timeout: COMPUTE_TIMEOUT });
-    await expect(station(page).getByText("Analysis failed")).toBeVisible();
+    await expect(station(page).getByText(PARSE_FAILED)).toBeVisible();
     // No classification rows and no hollow echo once the parse failed.
     await expect(usesRow(page)).toHaveCount(0);
     await expect(diagnosticEcho(page)).toHaveCount(0);
@@ -305,30 +318,23 @@ test.describe("Anchorflow shell journeys", () => {
     page,
   }) => {
     // Deterministic, distinctive payload. The multibyte character makes the
-    // four measurements distinct, so each readout is unambiguous:
-    // 11 characters · 2 words · 12 bytes · 1 line.
+    // byte count differ from the character count (11 chars, 12 bytes), so the
+    // readout proves the engine measured UTF-8 bytes, not string length.
     const payload = "alpha béta\n";
     await fillStable(sourceInput(page), payload);
 
-    // The worker echoes the analyzed text back into the diagnostic pane.
+    // The worker echoes the analyzed text back into the pinned-file view.
     await expect(diagnosticEcho(page)).toHaveText(payload, {
       timeout: COMPUTE_TIMEOUT,
     });
 
-    // …and the measurement grid reports the same numbers the pure core does.
-    const diagnostics = station(page).locator("dl");
-    await expect(diagnostics.getByText("characters")).toBeVisible();
-    await expect(diagnostics.getByText("words")).toBeVisible();
-    await expect(diagnostics.getByText("bytes")).toBeVisible();
-    await expect(diagnostics.getByText("lines")).toBeVisible();
-    await expect(diagnostics.getByText("11", { exact: true })).toBeVisible({
-      timeout: COMPUTE_TIMEOUT,
-    });
-    await expect(diagnostics.getByText("2", { exact: true })).toBeVisible();
-    await expect(diagnostics.getByText("12", { exact: true })).toBeVisible();
+    // …and the readout under the editor reports what the pure core measured.
+    const meta = page.locator("#workflow-meta");
+    await expect(meta).toContainText("12 bytes", { timeout: COMPUTE_TIMEOUT });
+    await expect(meta).toContainText(/\d+ lines/);
 
-    // The status strip reflects the new counts too.
-    await expect(station(page).getByText("Ready")).toBeVisible({
+    // The certified copy settles its stamp for the new text too.
+    await expect(settled(page)).toBeVisible({
       timeout: COMPUTE_TIMEOUT,
     });
   });
@@ -354,15 +360,17 @@ test.describe("Anchorflow shell journeys", () => {
   test("the palette's Resolve & pin is disabled with nothing pending (M14)", async ({
     page,
   }) => {
-    // An already-pinned workflow leaves no `remoteRef` node, so the command
-    // must be listed but inert — never a quota-spending no-op.
+    // An already-pinned workflow leaves no `remoteRef` node, so the page
+    // offers no resolve at all and the palette command is listed but inert —
+    // never a quota-spending no-op.
     await fillStable(
       sourceInput(page),
       "name: pinned\njobs:\n  b:\n    steps:\n      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683\n"
     );
-    await expect(page.getByTestId("resolve-pin-button")).toBeDisabled({
+    await expect(station(page).getByText("Every action is already pinned to a commit.")).toBeVisible({
       timeout: COMPUTE_TIMEOUT,
     });
+    await expect(page.getByTestId("resolve-pin-button")).toHaveCount(0);
 
     const dialog = page.getByRole("dialog", { name: /command palette/i });
     await page.keyboard.press(`${MOD}+K`);
@@ -451,7 +459,7 @@ test.describe("Anchorflow shell journeys", () => {
     await page.keyboard.press(`${MOD}+Shift+C`);
 
     // Tactile success toast names exactly what was copied.
-    const toast = page.getByText(/diagnostic output copied/i);
+    const toast = page.getByText(/pinned file copied/i);
     await expect(toast).toBeVisible({ timeout: COMPUTE_TIMEOUT });
 
     // The clipboard really holds the mirrored output.
@@ -464,11 +472,11 @@ test.describe("Anchorflow shell journeys", () => {
   test("per-pane copy button copies the same output", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
 
-    const copyButton = station(page).getByRole("button", { name: /^copy$/i });
+    const copyButton = station(page).getByRole("button", { name: /^copy file$/i });
     await expect(copyButton).toBeVisible();
     await copyButton.click();
 
-    await expect(page.getByText(/diagnostic output copied/i)).toBeVisible({
+    await expect(page.getByText(/pinned file copied/i)).toBeVisible({
       timeout: COMPUTE_TIMEOUT,
     });
     const clipboard = await page.evaluate(() => navigator.clipboard.readText());
@@ -565,11 +573,11 @@ test.describe("Anchorflow shell journeys", () => {
   test("below-the-fold education renders from its single sources", async ({
     page,
   }) => {
-    await expect(page.locator("#matrix")).toBeVisible();
+    await expect(page.locator("#compare")).toBeVisible();
     await expect(page.locator("#guide")).toBeVisible();
     await expect(page.locator("#faq")).toBeVisible();
 
-    // The guide renders its first tab's copy from _lib/guide.ts.
+    // The guide renders its before/after copy from _lib/guide.ts.
     await expect(
       page.locator("#guide").getByText(/Pin every action to an immutable commit/i)
     ).toBeVisible();
@@ -579,14 +587,16 @@ test.describe("Anchorflow shell journeys", () => {
     await expect(faq).toBeVisible();
     await expect(faq.locator("summary")).toContainText(/leave my browser/i);
 
-    // Zero-drift SEO: the FAQPage JSON-LD is derived from the same array.
+    // Zero-drift SEO: the FAQPage JSON-LD is derived from the same array, and
+    // ships beside the WebApplication entity.
     const jsonLd = await page
       .locator('script[type="application/ld+json"]')
       .innerText();
-    const parsed = JSON.parse(jsonLd);
-    expect(parsed["@type"]).toBe("FAQPage");
-    expect(parsed.mainEntity.length).toBeGreaterThan(0);
-    expect(parsed.mainEntity[0].name).toContain("leave my browser");
+    const parsed = JSON.parse(jsonLd) as Array<Record<string, unknown>>;
+    expect(parsed.map((entity) => entity["@type"])).toEqual(["WebApplication", "FAQPage"]);
+    const faqPage = parsed[1] as { mainEntity: Array<{ name: string }> };
+    expect(faqPage.mainEntity.length).toBeGreaterThan(0);
+    expect(faqPage.mainEntity[0].name).toContain("leave my browser");
   });
 
   test("sign-in is offer-never-lock: an unconfigured install explains, never gates", async ({
@@ -602,7 +612,7 @@ test.describe("Anchorflow shell journeys", () => {
     ).toBeVisible();
 
     // Core work is never gated: the copy affordance is still live.
-    const copyButton = station(page).getByRole("button", { name: /^copy$/i });
+    const copyButton = station(page).getByRole("button", { name: /^copy file$/i });
     await expect(copyButton).toBeEnabled();
 
     // The command palette can still drive the sign-in affordance.
@@ -668,9 +678,11 @@ test("the audit findings render with the right severities and copy (AC-6 · AC-7
   await input.click();
   await input.fill(AUDIT_WORKFLOW);
 
-  // `station` is the two-pane workstation; the diagnostic pane carries the
-  // findings section the audits land in.
+  // `station` is the workstation; the certified copy's Findings tab carries
+  // the findings the audits land in. Seven findings collapse after four.
   await expect(station(page)).toBeVisible();
+  await expect(station(page).getByTestId("finding-item")).toHaveCount(4);
+  await showAllFindings(page);
 
   // ── The severity summary chip row ──────────────────────────────────────────
   // 5 critical (2 × write-all, dangerous trigger, 2 × template injection)
@@ -678,7 +690,7 @@ test("the audit findings render with the right severities and copy (AC-6 · AC-7
   await expect(station(page).getByTestId("findings-report")).toBeVisible();
   await expect(station(page).getByTestId("findings-count-critical")).toContainText("5");
   await expect(station(page).getByTestId("findings-count-major")).toContainText("2");
-  await expect(station(page).getByText("7 total")).toBeVisible();
+  await expect(station(page).getByTestId("finding-item")).toHaveCount(7);
 
   // ── The four audits, each at the severity the adjudication demands ─────────
   const item = (category: string, severity: string) =>
@@ -723,14 +735,15 @@ test("the audit findings render with the right severities and copy (AC-6 · AC-7
     "persist-credentials: false"
   );
 
-  // ── The grant table beside it ──────────────────────────────────────────────
+  // ── The grant table in its own tab ─────────────────────────────────────────
+  await openTab(page, /token grants/i);
   await expect(station(page).getByTestId("grant-table")).toBeVisible();
   await expect(
     station(page).locator('[data-testid="grant-scope"][data-level="write"]')
   ).toHaveCount(15); // the top-level write-all, inherited by the job
   await expect(
     station(page).locator('[data-testid="grant-row"][data-job="label"]')
-  ).toContainText("jobs.label");
+  ).toContainText("label");
 
   // ── One finding per site, deterministically ordered (AC-10) ────────────────
   const reorder = async () => {
@@ -742,7 +755,9 @@ test("the audit findings render with the right severities and copy (AC-6 · AC-7
     nodes.map((n) => n.getAttribute("data-finding-id"))
   );
   await reorder();
+  await openTab(page, /findings/i);
   await expect(station(page).getByTestId("findings-report")).toBeVisible();
+  await showAllFindings(page);
   const after = await station(page).getByTestId("finding-item").evaluateAll((nodes) =>
     nodes.map((n) => n.getAttribute("data-finding-id"))
   );
@@ -816,10 +831,12 @@ jobs:
 `);
 
   await expect(station(page).getByTestId("findings-clear")).toBeVisible();
-  await expect(station(page).getByTestId("findings-clear")).toContainText("no findings");
-  await expect(station(page).getByText("0 total")).toBeVisible();
-  await expect(station(page).getByTestId("copy-all-findings")).toBeDisabled();
+  await expect(station(page).getByTestId("findings-clear")).toContainText(/no findings/i);
+  await expect(station(page).getByTestId("finding-item")).toHaveCount(0);
+  // Nothing to copy, so there is no copy-all affordance at all.
+  await expect(station(page).getByTestId("copy-all-findings")).toHaveCount(0);
   // The grant table still reports the exact grant, and marks it as pinned.
+  await openTab(page, /token grants/i);
   await expect(station(page).getByTestId("grant-table")).toBeVisible();
   await expect(
     station(page).locator('[data-testid="grant-scope"][data-scope="contents"][data-level="read"]')

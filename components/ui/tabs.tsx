@@ -12,15 +12,13 @@ const TabsList = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.List
     ref={ref}
-    className={cn(
-      "inline-flex h-9 items-center justify-center rounded-lg bg-surface-subtle p-0.5 text-zinc-400 border border-surface-border",
-      className
-    )}
+    className={cn("flex items-stretch gap-4 overflow-x-auto sm:gap-6 border-b border-line", className)}
     {...props}
   />
 ));
 TabsList.displayName = TabsPrimitive.List.displayName;
 
+/** Underline tabs: the active one wears a 2px seal rule, the rest are ink-2. */
 const TabsTrigger = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
@@ -28,7 +26,10 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 ease-out-expo focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime/70 disabled:pointer-events-none disabled:opacity-50 text-zinc-400 hover:text-zinc-200 hover:bg-surface-elevated/60 active:scale-[0.97] data-[state=active]:bg-brand-lime/10 data-[state=active]:text-brand-lime data-[state=active]:ring-1 data-[state=active]:ring-brand-lime/40",
+      "-mb-px inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 border-transparent py-2.5 text-sm font-semibold text-ink-2",
+      "transition-colors duration-150 ease-out-expo hover:text-ink",
+      "disabled:cursor-not-allowed disabled:opacity-50",
+      "data-[state=active]:border-seal data-[state=active]:text-ink",
       className
     )}
     {...props}
@@ -40,14 +41,7 @@ const TabsContent = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
 >(({ className, ...props }, ref) => (
-  <TabsPrimitive.Content
-    ref={ref}
-    className={cn(
-      "mt-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime/70",
-      className
-    )}
-    {...props}
-  />
+  <TabsPrimitive.Content ref={ref} className={cn("pt-4", className)} {...props} />
 ));
 TabsContent.displayName = TabsPrimitive.Content.displayName;
 

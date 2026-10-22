@@ -11,7 +11,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  *   · the DEGRADED path runs the SAME pure core on the main thread and returns
  *     the SAME report — proved by forcing a worker death and asserting the
  *     instrument still settles with byte-identical output, under the amber
- *     "Main-thread mode active" banner with `data-engine="main"`;
+ *     main-thread notice with `data-engine="main"`;
  *   · the CATASTROPHIC path never hangs: a worker that accepts a dispatch and
  *     never answers is killed by the 1.5 s Phase-A watchdog, which settles the
  *     friendly verdict and leaves the editor usable (BAR §10 item 7);
@@ -83,13 +83,13 @@ interface Fingerprint {
 
 const station = (page: Page): Locator => page.locator("#workstation");
 
-/** Reads a `<dt>`'s adjacent `<dd>` from the metrics grid. */
-async function metric(page: Page, label: string): Promise<string> {
-  const value = station(page)
-    .locator("dl dt")
-    .getByText(label, { exact: true })
-    .locator("+ dd");
-  return (await value.innerText()).trim();
+/**
+ * Reads one measurement off the readout under the editor. Lines and bytes are
+ * printed there; all four ride on its `data-*` attributes so the two engines
+ * can be compared measurement for measurement.
+ */
+async function metric(page: Page, label: "characters" | "words" | "bytes" | "lines"): Promise<string> {
+  return (await page.locator("#workflow-meta").getAttribute(`data-${label}`)) ?? "";
 }
 
 async function fingerprint(page: Page): Promise<Fingerprint> {
@@ -269,7 +269,7 @@ async function settleReport(page: Page, marker?: string): Promise<void> {
   if (marker) {
     await expect(echo).toContainText(marker, { timeout: READY_TIMEOUT });
   }
-  await expect(station(page).getByText("Ready")).toBeVisible({
+  await expect(station(page).getByText(/computed in this tab/)).toBeVisible({
     timeout: READY_TIMEOUT,
   });
 }
@@ -339,9 +339,9 @@ test("degraded path: a forced worker death still computes the SAME report on the
   const external = trackExternal(page);
   await bootWorkspace(page);
 
-  // The degradation banner and the engine flag both tell the truth.
+  // The degradation notice and the engine flag both tell the truth.
   await expect(
-    page.getByText("Main-thread mode active", { exact: false })
+    page.getByText("so the check runs on the main thread", { exact: false })
   ).toBeVisible({ timeout: READY_TIMEOUT });
   await expect(station(page)).toHaveAttribute("data-engine", "main", {
     timeout: READY_TIMEOUT,
@@ -380,9 +380,9 @@ test("degraded path: a forced worker death still computes the SAME report on the
   expect(degraded.engine).toBe("main");
   expect(happy.engine).toBe("worker");
 
-  // The degraded banner states the same core, not a substitute.
+  // The degraded notice states the same engine, not a substitute.
   await expect(
-    page.getByText("same core", { exact: false })
+    page.getByText("Same engine, same results", { exact: false })
   ).toBeVisible();
 
   // Zero egress on the degraded default path too.
@@ -404,8 +404,8 @@ test("catastrophic path: a worker that never answers settles the watchdog verdic
   await expect(verdict).toBeVisible({ timeout: 10_000 });
   await expect(verdict).toContainText("too complex to process in time");
 
-  // The status strip agrees, and says "failed" rather than spinning forever.
-  await expect(station(page).getByText("Analysis failed")).toBeVisible({
+  // The headline agrees, and says what happened rather than spinning forever.
+  await expect(station(page).getByText("This workflow took too long to check.")).toBeVisible({
     timeout: 10_000,
   });
 
@@ -490,7 +490,7 @@ function byteLength(text: string): number {
 const OVERSIZE_INPUT = oversizeWorkflow();
 const OVERSIZE_TRUE_BYTES = byteLength(OVERSIZE_INPUT);
 
-/** The metrics grid renders `value.toLocaleString("en-US")` — grouped digits. */
+/** The readout renders `value.toLocaleString("en-US")` — grouped digits. */
 const grouped = (value: number): string => value.toLocaleString("en-US");
 
 /**
@@ -554,9 +554,12 @@ test("the input cap: an oversize paste reports its TRUE byte count on both engin
     const bytes = await metric(workerPage, "bytes");
     const characters = await metric(workerPage, "characters");
     const lines = await metric(workerPage, "lines");
-    expect(bytes).toBe(grouped(OVERSIZE_TRUE_BYTES));
+    expect(bytes).toBe(String(OVERSIZE_TRUE_BYTES));
+    await expect(workerPage.locator("#workflow-meta")).toContainText(
+      `${grouped(OVERSIZE_TRUE_BYTES)} bytes`
+    );
 
-    // The amber chip states the trim (driven by `metrics.truncated`).
+    // The ochre notice states the trim (driven by `metrics.truncated`).
     await expect(
       workerPage.getByText("trimmed to 256 KiB for analysis")
     ).toBeVisible();
@@ -616,7 +619,7 @@ test("the input cap: an oversize paste reports its TRUE byte count on both engin
 
   // Identical engines of truth: byte count, characters and lines all match.
   expect(await metric(page, "bytes")).toBe(worker.bytes);
-  expect(worker.bytes).toBe(grouped(OVERSIZE_TRUE_BYTES));
+  expect(worker.bytes).toBe(String(OVERSIZE_TRUE_BYTES));
   expect(await metric(page, "characters")).toBe(worker.characters);
   expect(await metric(page, "lines")).toBe(worker.lines);
 

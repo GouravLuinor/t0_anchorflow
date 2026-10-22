@@ -1,0 +1,47 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;700;800&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0}
+body{width:1440px;height:900px;overflow:hidden;background:#fff;color:#111;font:15px/1.5 "Hanken Grotesk",sans-serif}
+.mono{font-family:"JetBrains Mono",monospace;font-size:12px}
+header{height:58px;display:flex;align-items:center;gap:40px;padding:0 48px;border-bottom:1px solid #e5e5e5}
+.brand{font-weight:800;font-size:19px}nav{display:flex;gap:28px;font-weight:500;color:#444}.r{margin-left:auto;font-size:13px;color:#444}
+.intro{padding:26px 48px 20px}h1{font-size:36px;font-weight:800;letter-spacing:-.02em}.sub{color:#444;margin-top:6px}
+.band{background:#ffd200;display:flex;align-items:center;gap:28px;padding:16px 48px}
+.gate{font-size:64px;font-weight:800;line-height:1}
+.arrow{width:54px;height:54px;background:#111;color:#ffd200;display:grid;place-items:center;font-size:34px;font-weight:800}
+.msg{font-size:26px;font-weight:700}.msg small{display:block;font-size:14px;font-weight:500}
+.steps{margin-left:auto;display:flex;gap:18px;font-weight:700;font-size:14px}.steps span{opacity:.45}.steps .on{opacity:1;border-bottom:3px solid #111}
+.work{display:grid;grid-template-columns:40fr 60fr;margin:20px 48px;border:1px solid #ddd;height:560px}
+.l{border-right:1px solid #ddd}.ph{padding:12px 18px;border-bottom:1px solid #eee;font-weight:700;font-size:13px}
+pre{padding:14px 18px;font-family:"JetBrains Mono";font-size:11.5px;line-height:1.75;color:#333}
+.row{display:grid;grid-template-columns:40px 1fr 140px;gap:14px;align-items:center;padding:12px 22px;border-bottom:1px solid #eee}
+.pic{width:28px;height:28px;background:#111;color:#fff;display:grid;place-items:center;font-size:13px;font-weight:800}
+.mv{font-weight:700;font-size:12px}.ok{color:#1a7f37;font-weight:700;font-size:12px}.cr{color:#d0342c;font-weight:700;font-size:12px}
+</style></head><body>
+<header><span class="brand">Anchorflow</span><nav><span>Pin</span><span>Compare</span><span>Guide</span><span>FAQ</span></nav><span class="r">Built by Nor AI</span></header>
+<div class="intro"><h1>Pin GitHub Actions to commit SHAs</h1><p class="sub">In your browser. The workflow is never uploaded.</p></div>
+<div class="band"><span class="gate">4</span><span class="arrow">→</span><p class="msg">Resolve moving tags<small>4 read-only requests to api.github.com · then copy the pinned file</small></p>
+<div class="steps"><span>1 Paste</span><span class="on">2 Resolve</span><span>3 Copy</span></div></div>
+<div class="work"><div class="l"><div class="ph">ci.yml</div><pre>name: ci
+permissions:
+  contents: write
+jobs:
+  build:
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4.2.0
+  label:
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            console.log("${{ github.event.pull_request.title }}")</pre></div>
+<div><div class="ph">8 actions · 4 moving · 1 critical</div>
+<div class="row"><span class="pic">⇄</span><span class="mono">actions/checkout@v4</span><span class="mv">MOVING TAG</span></div>
+<div class="row"><span class="pic">⇄</span><span class="mono">actions/setup-node@v4.2.0</span><span class="mv">MOVING TAG</span></div>
+<div class="row"><span class="pic">⚓</span><span class="mono">actions/checkout@11bd71901bbe5b16…</span><span class="ok">PINNED</span></div>
+<div class="row"><span class="pic">!</span><span class="mono">github.event.pull_request.title → script</span><span class="cr">CRITICAL INJECTION</span></div>
+</div></div>
+</body></html>

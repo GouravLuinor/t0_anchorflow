@@ -21,6 +21,7 @@ import {
   INITIAL_DISPATCH_STATE,
   isStaleDispatch,
   type DispatchState,
+  type WorkerReadyMessage,
 } from "../_lib/protocol";
 import type {
   FetchLike,
@@ -215,3 +216,7 @@ async function handleMessage(
 self.onmessage = (event) => {
   void handleMessage(event);
 };
+
+// Readiness handshake: the hook holds its first dispatch (and its watchdog)
+// until this lands, so load time never counts against the compute budget.
+self.postMessage({ type: "ready" } satisfies WorkerReadyMessage);

@@ -8,11 +8,12 @@ changed. It runs entirely in the visitor's browser — a workflow file is never
 uploaded, and nothing is computed server-side.
 
 - **Route**: `/tools/anchorflow` (the root `/` is a server-side `redirect()`)
-- **Port**: 3004 · **Subdomain / PM2**: `anchor.norai.tech` · `anchor-norai`
+- **Port**: 3004 · **Subdomain / PM2**: `anchorflow.norai.tech` · `anchor-norai`
 - **Version**: 1.0.0 (shipped)
-- **Design system**: Matchlight — a warm-porcelain light theme and a deep-pine
-  dark theme, one accent colour, inverted zinc as the only neutral
-  (`docs/DESIGN.md`)
+- **Design system**: Certified Copy — security-printing material: a pale
+  security-paper ground, intaglio ink, seal green for pinned, indigo for a
+  moving ref, and a guilloché seal drawn from every pinned SHA, in light and
+  dark (`DESIGN.md`, `.impeccable/design.json`)
 
 ## What it does (all offline, all deterministic)
 
@@ -52,11 +53,14 @@ npm run test:e2e       # Playwright, boots the real standalone artifact
 app/
 ├── page.tsx                    # root → server redirect() to the workstation
 ├── layout.tsx                  # ThemeProvider + site chrome
-├── globals.css                 # Matchlight token layer (light + dark)
-├── icon.tsx                    # the ⚓ mark
+├── globals.css                 # Certified Copy token layer (light + dark)
+├── icon.tsx                    # the brand seal
+├── opengraph-image.tsx         # 1200×630 share card
+├── sitemap.ts · robots.ts      # SEO (tool, guides index, six guides)
 └── tools/
     └── anchorflow/
-        ├── page.tsx            # the workstation shell (status strip · trust pills)
+        ├── page.tsx            # H1 + promises · workstation · compare · guide · FAQ · JSON-LD
+        ├── learn/              # the six guide pages (programmatic SEO)
         ├── _lib/               # THE PURE CORE — 21 modules, zero React / DOM / fetch
         ├── _hooks/             # useToolWorker · useKeyboardShortcuts · useAuth
         ├── _components/        # the surface, incl. auth/ (offer-never-lock)
@@ -65,7 +69,7 @@ app/
         └── __tests__/          # first-load boundary · contrast
 ├── components/ui/              # shared primitives (button, dialog, switch, …)
 ├── e2e/                        # pipeline · resolve · smoke · visual (4 spec files)
-├── lib/                        # site (FAQ source) · utils (cn, copyTextToClipboard)
+├── lib/                        # site (FAQ, comparison, family tools) · learn (guides) · utils
 ├── scripts/bench-phase-a.ts    # `npm run bench`
 ├── deploy.sh                   # dirty-tree guard → supply-chain gate → release
 └── ecosystem.config.js         # PM2: anchor-norai on 127.0.0.1:3004

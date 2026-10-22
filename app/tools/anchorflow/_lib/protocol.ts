@@ -48,3 +48,22 @@ export function acceptDispatch(
     lastPhaseRank: PHASE_RANK[message.phase],
   };
 }
+
+/**
+ * The worker's readiness handshake. The worker posts this once its module has
+ * loaded; the hook holds every dispatch (and its watchdog) until it lands, so
+ * chunk download and parse time on a slow device never count against the
+ * compute budget and the built-in example can never be called "too complex".
+ */
+export interface WorkerReadyMessage {
+  type: "ready";
+}
+
+/** True for the readiness handshake, false for any analysis envelope. */
+export function isReadyMessage(message: unknown): message is WorkerReadyMessage {
+  return (
+    typeof message === "object" &&
+    message !== null &&
+    (message as { type?: unknown }).type === "ready"
+  );
+}

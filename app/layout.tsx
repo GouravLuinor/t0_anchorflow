@@ -1,66 +1,55 @@
 import type { Metadata, Viewport } from "next";
 import { type ReactNode } from "react";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Martian_Mono, Schibsted_Grotesk } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "./tools/anchorflow/_components/providers/ThemeProvider";
+import { SITE, SITE_URL } from "@/lib/site";
 
-const inter = Inter({
+const schibsted = Schibsted_Grotesk({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-inter",
+  variable: "--font-schibsted",
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const martian = Martian_Mono({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-jetbrains-mono",
+  variable: "--font-martian",
+  // The narrow width keeps 40-hex SHAs on one line in the ledger.
+  axes: ["wdth"],
 });
-
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://anchor.norai.tech";
-
-const description =
-  "Anchorflow is a 100% client-side GitHub Actions workstation: SHA-pinning, permission audits, injection-sink detection and a red/green diff of exactly what changed. Your workflow never leaves your browser.";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "Anchorflow — GitHub Actions Workstation",
+    default: `${SITE.title} · Anchorflow`,
     template: "%s · Anchorflow",
   },
-  description,
-  keywords: [
-    "github actions",
-    "pin actions to sha",
-    "sha pinning",
-    "actions permissions audit",
-    "workflow security audit",
-    "template injection",
-    "Anchorflow",
-    "NorAI",
-  ],
+  description: SITE.description,
+  keywords: [...SITE.keywords],
   applicationName: "Anchorflow",
-  robots: {
-    index: true,
-    follow: true,
-  },
+  creator: SITE.creator,
+  alternates: { canonical: "/tools/anchorflow" },
+  robots: { index: true, follow: true },
   openGraph: {
-    title: "Anchorflow — GitHub Actions Workstation",
-    description,
+    title: `${SITE.title} · Anchorflow`,
+    description: SITE.description,
     type: "website",
-    url: "/",
-    siteName: "Anchorflow",
+    url: "/tools/anchorflow",
+    siteName: "Anchorflow by Nor AI",
+    locale: SITE.locale,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Anchorflow — GitHub Actions Workstation",
-    description,
+    title: `${SITE.title} · Anchorflow`,
+    description: SITE.description,
   },
 };
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fafaf7" },
-    { media: "(prefers-color-scheme: dark)", color: "#0c0e0b" },
+    { media: "(prefers-color-scheme: light)", color: "#e6ece4" },
+    { media: "(prefers-color-scheme: dark)", color: "#101b17" },
   ],
   colorScheme: "light dark",
 };
@@ -70,9 +59,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${inter.variable} ${jetbrainsMono.variable}`}
+      className={`${schibsted.variable} ${martian.variable}`}
     >
-      <body className="font-sans bg-canvas text-ink min-h-screen antialiased selection:bg-brand-lime/25">
+      <body className="min-h-screen bg-paper font-sans text-ink antialiased">
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>

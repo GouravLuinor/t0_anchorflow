@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Loader2, Lock } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -29,25 +29,19 @@ export function SignInModal() {
   const copy = useMemo(() => {
     if (isAuthenticated)
       return {
-        title: "You&rsquo;re signed in",
-        description: `Signed in as ${email ?? "your account"}. Audit history and saved workflows are unlocked.`,
+        title: "You\u2019re signed in",
+        description: `Signed in as ${email ?? "your account"}. Anchorflow works the same signed in or out; it stores nothing for you yet.`,
       };
     if (trigger === "export")
       return {
-        title: "Sign in to sync across devices",
+        title: "Sign in to Nor AI",
         description:
-          "Saving audit snapshots uses a free Nor AI account. Core workflow work — pin, audit, diff, copy — stays free forever.",
-      };
-    if (trigger === "return-visit")
-      return {
-        title: "Welcome back to Anchorflow",
-        description:
-          "Sign in to sync saved workflows and audit history across your devices.",
+          "Pinning, auditing and copying stay free without an account. Signing in only links this browser to your Nor AI account.",
       };
     return {
-      title: "Sign in to Anchorflow",
+      title: "Sign in to Nor AI",
       description:
-        "Connect Google or GitHub to sync saved workflows and audit history across devices.",
+        "Everything in Anchorflow works without an account, and nothing is saved to one yet. Signing in links this browser to the account other Nor AI tools use.",
     };
   }, [isAuthenticated, email, trigger]);
 
@@ -67,16 +61,10 @@ export function SignInModal() {
         if (!next) close();
       }}
     >
-      <DialogContent className="max-w-md shadow-elevated">
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <div
-            className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-surface-border bg-surface-elevated text-brand-lime"
-            aria-hidden="true"
-          >
-            <Lock className="h-5 w-5" />
-          </div>
-          <DialogTitle className="text-center">{copy.title}</DialogTitle>
-          <DialogDescription className="mt-2 text-center text-sm leading-relaxed">
+          <DialogTitle>{copy.title}</DialogTitle>
+          <DialogDescription className="mt-2 leading-relaxed">
             {copy.description}
           </DialogDescription>
         </DialogHeader>
@@ -89,7 +77,7 @@ export function SignInModal() {
                 await signOut();
                 close();
               }}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-surface-border bg-surface-subtle text-sm font-medium text-zinc-200 transition-all duration-150 ease-out-expo hover:border-surface-borderHover hover:bg-surface-elevated hover:text-brand-rose active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime/70 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded border border-line-strong bg-sheet text-sm font-semibold text-ink transition-colors duration-150 ease-out-expo hover:bg-sunk hover:text-critical disabled:cursor-not-allowed disabled:opacity-50"
             >
               Sign out
             </button>
@@ -102,7 +90,7 @@ export function SignInModal() {
                 type="button"
                 disabled={!isConfigured || pending !== null}
                 onClick={() => handleProvider(provider.id)}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-surface-border bg-surface-subtle text-sm font-medium text-zinc-200 transition-all duration-150 ease-out-expo hover:border-surface-borderHover hover:bg-surface-elevated active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime/70 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded border border-line-strong bg-sheet text-sm font-semibold text-ink transition-colors duration-150 ease-out-expo hover:bg-sunk disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {pending === provider.id ? (
                   <Loader2
@@ -119,9 +107,9 @@ export function SignInModal() {
             ))}
 
             {!isConfigured && (
-              <p className="mt-1 rounded-lg border border-brand-amber/30 bg-brand-amber/10 px-3 py-2 text-xs leading-relaxed text-brand-amber">
-                Everything in Anchorflow works without an account — sign-in only
-                powers cross-device sync.
+              <p className="mt-1 text-sm leading-relaxed text-ink-2">
+                Sign-in isn&rsquo;t enabled on this deployment. You never need
+                an account to use Anchorflow.
               </p>
             )}
           </div>

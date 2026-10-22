@@ -96,7 +96,7 @@ export function CommandPalette() {
     }
     void copyTextToClipboard(rewritten).then((succeeded) => {
       if (succeeded) {
-        toast({ title: "Diagnostic output copied", description: "⌘⇧C" });
+        toast({ title: "Pinned file copied", description: "⌘⇧C" });
       } else {
         toast({ title: "Copy failed", variant: "destructive" });
       }
@@ -111,7 +111,7 @@ export function CommandPalette() {
     const navigation: CommandItem[] = [
       {
         id: "nav-workstation",
-        title: "Go to Workstation",
+        title: "Go to the workflow",
         category: "Navigation",
         icon: <Compass className="h-4 w-4" aria-hidden="true" />,
         onSelect: () => {
@@ -120,12 +120,12 @@ export function CommandPalette() {
         },
       },
       {
-        id: "nav-matrix",
-        title: "Why Anchorflow",
+        id: "nav-compare",
+        title: "How it compares",
         category: "Navigation",
         icon: <Table2 className="h-4 w-4" aria-hidden="true" />,
         onSelect: () => {
-          scrollToSection("matrix");
+          scrollToSection("compare");
           close();
         },
       },
@@ -174,7 +174,7 @@ export function CommandPalette() {
       },
       {
         id: "action-copy",
-        title: "Copy Diagnostic Output",
+        title: "Copy pinned file",
         category: "Actions",
         icon: <ClipboardCopy className="h-4 w-4" aria-hidden="true" />,
         keycap: "⌘⇧C",
@@ -185,7 +185,7 @@ export function CommandPalette() {
       },
       {
         id: "action-example",
-        title: "Insert Example Workflow",
+        title: "Insert example workflow",
         category: "Actions",
         hint: "Re-seed the editor with the built-in sample",
         icon: <Anchor className="h-4 w-4" aria-hidden="true" />,
@@ -197,7 +197,7 @@ export function CommandPalette() {
       },
       {
         id: "action-theme",
-        title: "Toggle Dark / Light Theme",
+        title: "Switch light / dark theme",
         category: "Actions",
         icon: <SunMoon className="h-4 w-4" aria-hidden="true" />,
         onSelect: () => {
@@ -207,7 +207,7 @@ export function CommandPalette() {
       },
       {
         id: "action-reset",
-        title: "Clear the Editor",
+        title: "Clear the editor",
         category: "Actions",
         icon: <RotateCcw className="h-4 w-4" aria-hidden="true" />,
         onSelect: () => {
@@ -217,7 +217,7 @@ export function CommandPalette() {
       },
       {
         id: "action-sign-in",
-        title: "Sign In to Anchorflow",
+        title: "Sign in",
         category: "Actions",
         icon: <UserRound className="h-4 w-4" aria-hidden="true" />,
         onSelect: () => {
@@ -320,12 +320,12 @@ export function CommandPalette() {
   return (
     <Dialog open={isCommandPaletteOpen} onOpenChange={setCommandPaletteOpen}>
       <DialogContent
-        className="top-[10vh] flex max-w-lg translate-y-0 flex-col gap-0 overflow-hidden rounded-2xl border border-surface-border bg-surface-default p-0 shadow-elevated [&>button]:hidden"
+        className="top-[10vh] flex max-w-lg translate-y-0 flex-col gap-0 overflow-hidden rounded border border-line-strong bg-sheet p-0 shadow-pop [&>button]:hidden"
       >
         <DialogTitle className="sr-only">Command palette</DialogTitle>
 
-        <div className="flex items-center gap-3 border-b border-surface-border bg-surface-subtle px-4 py-3">
-          <Search className="h-4 w-4 shrink-0 text-zinc-400" aria-hidden="true" />
+        <div className="flex items-center gap-3 border-b border-line bg-band px-4 py-3">
+          <Search className="h-4 w-4 shrink-0 text-ink-3" aria-hidden="true" />
           <input
             ref={inputRef}
             id="command-palette-search-input"
@@ -343,7 +343,7 @@ export function CommandPalette() {
             aria-expanded={true}
             aria-controls={listId}
             aria-activedescendant={activeOptionId}
-            className="w-full rounded-md bg-transparent font-mono text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime/70"
+            className="w-full rounded bg-transparent font-mono text-sm text-ink placeholder:text-ink-3 focus:outline-none focus-visible:outline-none"
           />
           <Keycap size="xs">ESC</Keycap>
         </div>
@@ -355,14 +355,14 @@ export function CommandPalette() {
           className="max-h-80 overflow-y-auto p-2"
         >
           {filtered.length === 0 ? (
-            <div className="px-3 py-6 text-center font-mono text-xs text-zinc-500">
+            <div className="px-3 py-6 text-center text-sm text-ink-3">
               No matching commands.
             </div>
           ) : (
             grouped.map((group) =>
               group.items.length === 0 ? null : (
                 <div key={group.category} className="mb-1 last:mb-0">
-                  <div className="px-3 pb-1 pt-2 font-mono text-[10px] uppercase tracking-wide text-zinc-500">
+                  <div className="px-3 pb-1 pt-2 text-[12px] font-semibold text-ink-3">
                     {group.category}
                   </div>
                   {group.items.map(({ item, index }) => {
@@ -383,15 +383,15 @@ export function CommandPalette() {
                         }}
                         onMouseEnter={() => setSelectedIndex(index)}
                         className={cn(
-                          "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 transition-[background-color,border-color,color,transform] duration-150 ease-out-expo motion-reduce:transition-none",
+                          "flex items-center justify-between gap-3 rounded border px-3 py-2 transition-colors duration-150 ease-out-expo",
                           disabled
-                            ? "cursor-not-allowed border-transparent text-zinc-500"
+                            ? "cursor-not-allowed border-transparent text-ink-3 opacity-60"
                             : cn(
                                 "cursor-pointer",
                                 isSelected
-                                  ? "border-surface-borderHover bg-surface-elevated text-zinc-100"
-                                  : "border-transparent text-zinc-300 hover:border-surface-border hover:bg-surface-elevated/50",
-                                "active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime/70"
+                                  ? "border-line-strong bg-sunk text-ink"
+                                  : "border-transparent text-ink-2 hover:bg-sunk/60",
+                                ""
                               )
                         )}
                       >
@@ -400,20 +400,20 @@ export function CommandPalette() {
                             className={cn(
                               "shrink-0",
                               disabled
-                                ? "text-zinc-600"
+                                ? "text-ink-3"
                                 : isSelected
-                                  ? "text-brand-lime"
-                                  : "text-zinc-400"
+                                  ? "text-seal"
+                                  : "text-ink-3"
                             )}
                           >
                             {item.icon}
                           </span>
                           <span className="min-w-0">
-                            <span className="block truncate text-sm font-medium">
+                            <span className="block truncate text-sm font-semibold">
                               {item.title}
                             </span>
                             {item.hint || item.disabledHint ? (
-                              <span className="block truncate text-xs text-zinc-500">
+                              <span className="block truncate text-xs text-ink-3">
                                 {disabled ? item.disabledHint : item.hint}
                               </span>
                             ) : null}
@@ -425,7 +425,7 @@ export function CommandPalette() {
                           ) : null}
                           {isSelected ? (
                             <CornerDownLeft
-                              className="h-3.5 w-3.5 text-brand-lime"
+                              className="h-3.5 w-3.5 text-seal"
                               aria-hidden="true"
                             />
                           ) : null}
@@ -439,7 +439,7 @@ export function CommandPalette() {
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-4 border-t border-surface-border bg-surface-subtle/50 px-4 py-2 font-mono text-[10px] text-zinc-500 select-none">
+        <div className="flex items-center justify-between gap-4 border-t border-line bg-band px-4 py-2 font-mono text-[10px] text-ink-3 select-none">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
               <Keycap size="xs">↑</Keycap>
@@ -449,7 +449,7 @@ export function CommandPalette() {
               <Keycap size="xs">↵</Keycap> Select
             </span>
           </div>
-          <span className="font-medium text-zinc-400">Anchorflow</span>
+          <span className="font-semibold text-ink-2">Anchorflow</span>
         </div>
       </DialogContent>
     </Dialog>

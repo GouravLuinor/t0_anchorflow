@@ -11,7 +11,35 @@ domain pass was finished. The first release of the finished product resets to
 rather than inheriting the shell's bump count. The newest entry is therefore
 `1.0.0`, and `1.8.0` is kept below it as the historical record of the scaffold.
 
+[Unreleased]: https://anchorflow.norai.tech
 [1.0.0]: https://anchor.norai.tech
+
+## [Unreleased] — 2026-10-22 — Certified Copy redesign (branch `redesign`)
+
+### Changed
+- New visual world, **Certified Copy** (security printing), replacing
+  Matchlight: own token set, Schibsted Grotesk + condensed Martian Mono, 2px
+  radii, guilloché rule, and a seal generated from every pinned SHA
+  (`_lib/seal.ts`). `DESIGN.md` + `.impeccable/design.json` replace
+  `docs/DESIGN.md`, `design_tokens.json` and `docs/surface-brief.md`.
+- The workstation answers first: a verdict sentence and one next step, then a
+  uses ledger with per-pin receipts, then Findings · Token grants · Pinned file
+  · Diff tabs. The old toolbar, diagnostic pane and metrics grid are gone.
+- H1 is the search intent ("Pin GitHub Actions to commit SHAs, in your
+  browser"). The comparison now names categories, not brands, and its claims
+  were corrected.
+- Canonical origin is `https://anchorflow.norai.tech`.
+
+### Added
+- Six guide pages under `/tools/anchorflow/learn/*` with TechArticle +
+  BreadcrumbList JSON-LD; WebApplication JSON-LD beside FAQPage; OG image;
+  `llms.txt`; sitemap entries for every guide.
+- The Nor AI family footer with the other free tools.
+
+### Fixed
+- Worker readiness handshake: dispatches wait for the worker's `ready`
+  message, so a slow first load no longer shows a false "time budget" error.
+- The sign-in modal no longer claims saved state that doesn't exist.
 
 ## [1.0.0] — 2026-10-11 — First production release
 

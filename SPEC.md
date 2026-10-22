@@ -9,7 +9,7 @@
 | **Name** | Anchorflow |
 | **Slug** | `anchorflow` |
 | **Port** | **3004** (pinned in every file that mentions it; never 3000) |
-| **Subdomain** | `anchor.norai.tech` |
+| **Subdomain** | `anchorflow.norai.tech` |
 | **PM2 service** | `anchor-norai` |
 | **Repo route** | `app/tools/anchorflow/` (root `app/page.tsx` → `redirect("/tools/anchorflow")`) |
 | **Baseline / bar** | TokenCraft floor · RegexCraft canonical bar · Matchlight design system |

@@ -1,24 +1,17 @@
-import { MetadataRoute } from "next";
-
-// Same canonical base as layout.tsx metadataBase and app/robots.ts.
-const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://anchor.norai.tech";
+import type { MetadataRoute } from "next";
+import { LEARN_TOPICS } from "@/lib/learn";
+import { SITE_URL } from "@/lib/site";
 
 export default function sitemap(): MetadataRoute.Sitemap {
+  const now = new Date();
   return [
-    {
-      url: SITE,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 1.0,
-      // Canonical/default alternate points back at the SITE base.
-      alternates: { languages: { "x-default": SITE } },
-    },
-    {
-      url: `${SITE}/tools/anchorflow`,
-      lastModified: new Date(),
-      changeFrequency: "daily",
-      priority: 0.9,
-      alternates: { languages: { "x-default": `${SITE}/tools/anchorflow` } },
-    },
+    { url: `${SITE_URL}/tools/anchorflow`, lastModified: now, changeFrequency: "monthly", priority: 1 },
+    { url: `${SITE_URL}/tools/anchorflow/learn`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    ...LEARN_TOPICS.map((t) => ({
+      url: `${SITE_URL}/tools/anchorflow/learn/${t.slug}`,
+      lastModified: now,
+      changeFrequency: "yearly" as const,
+      priority: 0.6,
+    })),
   ];
 }

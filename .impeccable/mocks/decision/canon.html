@@ -1,0 +1,34 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+*{box-sizing:border-box;margin:0}
+body{width:1440px;height:900px;overflow:hidden;background:#fff;color:#1f2328;font:14px/1.5 -apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+header{height:56px;background:#f6f8fa;border-bottom:1px solid #d0d7de;display:flex;align-items:center;gap:28px;padding:0 32px}
+b{font-size:16px}nav{display:flex;gap:20px;color:#59636e}.r{margin-left:auto;color:#59636e}
+.intro{padding:28px 32px 18px}h1{font-size:30px;font-weight:600}.sub{color:#59636e;margin-top:4px}
+.work{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 32px}
+.box{border:1px solid #d0d7de;border-radius:6px;height:640px;overflow:hidden}
+.bh{background:#f6f8fa;border-bottom:1px solid #d0d7de;padding:10px 14px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.btn{background:#1f883d;color:#fff;border-radius:6px;padding:5px 14px;font-weight:600}
+pre{padding:12px 14px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.7}
+.tabs{display:flex;gap:18px;padding:0 14px;border-bottom:1px solid #d0d7de}.tabs span{padding:10px 0;color:#59636e}.tabs .on{color:#1f2328;border-bottom:2px solid #fd8c73;font-weight:600}
+.row{display:flex;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #eaeef2}
+.lab{border-radius:2em;padding:0 8px;font-size:12px;font-weight:500}.y{background:#fff8c5;color:#7d4e00}.g{background:#dafbe1;color:#1a7f37}
+</style></head><body>
+<header><b>Anchorflow</b><nav><span>Pin</span><span>Compare</span><span>Docs</span></nav><span class="r">Nor AI</span></header>
+<div class="intro"><h1>Pin GitHub Actions to commit SHAs</h1><p class="sub">Harden your workflow in the browser. Nothing is uploaded.</p></div>
+<div class="work"><div class="box"><div class="bh">Workflow YAML</div><pre>name: ci
+permissions:
+  contents: write
+jobs:
+  build:
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4.2.0</pre></div>
+<div class="box"><div class="bh">Result <span class="btn">Resolve &amp; pin</span></div>
+<div class="tabs"><span class="on">Pinned</span><span>Findings 4</span><span>Permissions</span><span>Diff</span></div>
+<div class="row mono"><span>actions/checkout@v4</span><span class="lab y">moving</span></div>
+<div class="row mono"><span>actions/setup-node@v4.2.0</span><span class="lab y">moving</span></div>
+<div class="row mono"><span>actions/checkout@11bd719…</span><span class="lab g">pinned</span></div></div></div>
+</body></html>

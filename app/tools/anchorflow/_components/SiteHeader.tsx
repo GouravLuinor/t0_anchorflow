@@ -1,58 +1,50 @@
-"use client";
-
-import Link from "next/link";
+import { Seal } from "./Seal";
+import { NorAiMark } from "./NorAiMark";
 import { ThemeToggle } from "./ThemeToggle";
 import { SignInButton } from "./auth/SignInButton";
 
 const NAV = [
-  { href: "#workstation", label: "Workstation" },
-  { href: "#matrix", label: "Why Anchorflow" },
-  { href: "#guide", label: "Guide" },
-  { href: "#faq", label: "FAQ" },
+  { href: "/tools/anchorflow#workstation", label: "Pin a workflow" },
+  { href: "/tools/anchorflow#compare", label: "Compare" },
+  { href: "/tools/anchorflow/learn", label: "Guides" },
+  { href: "/tools/anchorflow#faq", label: "FAQ" },
 ];
 
+/** The band header: rosette + wordmark, section nav, and the quiet controls. */
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-40 border-b border-surface-border bg-canvas/80 backdrop-blur-md">
-      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 md:px-6 lg:px-8">
-        <Link
-          href="/"
-          aria-label="Anchorflow — home"
-          className="flex min-w-0 items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime/70"
-        >
-          <span
-            aria-hidden="true"
-            className="flex h-9 w-9 shrink-0 select-none items-center justify-center rounded-lg border border-surface-border bg-surface-elevated font-mono text-sm font-extrabold leading-none text-brand-lime glass-edge"
-          >
-            ⚓
-          </span>
-          <span className="hidden min-w-0 sm:block">
-            <span className="block truncate text-sm font-semibold tracking-tight text-zinc-100">
-              Anchorflow
-            </span>
-            <span className="block truncate text-xs text-zinc-400">
-              GitHub Actions workstation
-            </span>
-          </span>
-        </Link>
+    <header className="sticky top-0 z-40 bg-band">
+      <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center gap-6 px-4 sm:px-6 lg:px-8">
+        <a href="/tools/anchorflow" className="flex items-center gap-2.5 rounded" aria-label="Anchorflow home">
+          <Seal seed="anchorflow" size={26} />
+          <span className="text-[17px] font-extrabold tracking-[-0.01em] text-ink">Anchorflow</span>
+        </a>
 
         <nav aria-label="Sections" className="hidden items-center gap-1 md:flex">
           {NAV.map((item) => (
             <a
               key={item.href}
               href={item.href}
-              className="rounded-md px-2.5 py-1 text-xs font-medium text-zinc-400 transition-colors duration-150 ease-out-expo hover:bg-surface-subtle hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime/70"
+              className="rounded px-2.5 py-1.5 text-sm font-medium text-ink-2 transition-colors duration-150 hover:bg-sunk hover:text-ink"
             >
               {item.label}
             </a>
           ))}
         </nav>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex items-center gap-1">
           <ThemeToggle />
           <SignInButton />
+          <a
+            href="https://norai.tech"
+            className="ml-1 hidden items-center gap-2 rounded px-2 py-1.5 text-sm font-medium text-ink-2 transition-colors duration-150 hover:bg-sunk hover:text-ink sm:inline-flex"
+          >
+            <NorAiMark />
+            Nor AI
+          </a>
         </div>
       </div>
+      <div className="guilloche-rule border-b border-line" aria-hidden="true" />
     </header>
   );
 }

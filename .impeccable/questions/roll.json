@@ -1,0 +1,122 @@
+{
+  "title": "Choose Anchorflow's visual world",
+  "question": "Anchorflow pins GitHub Actions to commit SHAs and audits the workflow, all in the browser. The roll assigned Certified Copy. Keep it, take an alternate, or re-roll.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "Certified Copy",
+      "kicker": "THE ROLL",
+      "lineage": "Notarial certificates and security printing: guilloché rosettes, intaglio green, numbered serials",
+      "thesis": "Every pin is a certified entry: the result reads as a certified copy of your workflow, and each pinned action carries a seal drawn from its own commit SHA, so the same SHA always draws the same seal and a changed one is visible at a glance.",
+      "palette": ["#eef2ec", "#10231c", "#1f6b4f", "#c4361b", "#b26b00", "#4b4fa8"],
+      "materials": ["security-paper green ground", "intaglio ink", "SHA-seeded guilloché seals", "numbering-machine serials"],
+      "viewport": "Header: rosette mark + Anchorflow, nav (Pin · Compare · Guide · FAQ), theme, Nor AI mark. H1 'Pin GitHub Actions to commit SHAs, in your browser'. Left 40%: your workflow editor. Right 60%: the certified copy. A one-line verdict ('4 of 8 actions ride moving tags · 1 critical injection · 3 over-broad grants'), the primary 'Resolve & pin 4 refs' with its network disclosure, then the uses ledger where pinned lines wear their seal + short SHA. Findings, token grants, diff and receipts sit as tabs beneath.",
+      "risk": "Guilloché used as wallpaper turns into a banknote costume; it must stay on the seals and one header rule. The certificate metaphor also has to stay subordinate to a clean working screen.",
+      "raised": [
+        {"from": "challenger-datamatics", "raise": "Datamatics density: every SHA is shown in full 40-hex tabular mono where it matters (ledger, receipts), never ellipsised to look tidy."},
+        {"from": "challenger-star-atlas", "raise": "Star-atlas magnitude ramp: severity is carried by mark size on one fixed ramp as well as by colour and a word, so nothing depends on colour alone."},
+        {"from": "challenger-jcard", "raise": "J-card hard halves: on phones the result flips between 'As pasted' and 'Pinned' as two whole sides instead of a cramped side-by-side diff."},
+        {"from": "challenger-feed", "raise": "Feed focus: one next step owns the verdict line at a time (paste → resolve → copy), re-written after each step."}
+      ],
+      "html": ".impeccable/mocks/decision/assigned.html"
+    },
+    {
+      "id": "model-pick",
+      "label": "Manifest & Bolt Seals",
+      "kicker": "IMPECCABLE’S PICK",
+      "lineage": "Customs cargo manifests and numbered tamper-evident bolt seals",
+      "thesis": "Your workflow is a cargo manifest. Every action is a container, and pinning snaps a numbered bolt seal (the short SHA) on it; a moving tag is an unsealed container, and the receipt is the manifest line a customs officer can re-check.",
+      "palette": ["#f4f5f7", "#14213d", "#e2531b", "#1d7a4c", "#c4361b"],
+      "materials": ["navy manifest band", "container-orange seal tags", "stencil display numerals", "tabular mono serials"],
+      "viewport": "Navy band header with stencil 'Anchorflow' and nav. H1 on the band. Below: editor left, manifest right: rows of actions with an orange bolt-seal tag (sealed: short SHA; open: 'unsealed · @v4'). 'Seal 4 containers' primary. Findings and grants as tabs.",
+      "risk": "Familiar: shipping/containers is the metaphor half the DevOps world already uses (Docker), so it reads less distinct. Stencil type can tip into industrial costume.",
+      "html": ".impeccable/mocks/decision/model-pick.html"
+    },
+    {
+      "id": "challenger-wayfinding",
+      "label": "Terminal Yellow Wayfinding",
+      "verdict": "competitive",
+      "lineage": "International airport sign systems: yellow overhead bands, black humanist sans, monumental gate numbers",
+      "thesis": "Hardening a workflow is a connection to make: a sticky yellow band always shows the one next decision with its count at gate-number scale, and re-signs itself after each step.",
+      "palette": ["#ffd200", "#111111", "#ffffff", "#2b2b2b", "#d0342c"],
+      "materials": ["saturated yellow sign band", "black humanist sans", "white pictograms on black insets"],
+      "viewport": "A full-width yellow band under the header: '4 → Resolve moving tags · 4 read-only requests to api.github.com'. Below it a white work area: editor left, result right with the uses list. The band re-signs to '→ Copy pinned file' after resolving.",
+      "case": "Fuses cleanly and wins product clarity (it is literally a guided flow, the fix for the cockpit), but engineers don't identify with airport signage, and the yellow band shouts on a tool used daily.",
+      "risk": "Loud on repeat use; yellow + black reads 'warning' to security engineers.",
+      "html": ".impeccable/mocks/decision/challenger-wayfinding.html",
+      "board": "https://impeccable.style/worlds/cards/wayfinding-cartography-signage-terminal-yellow-wayfinding.webp",
+      "hero": "https://impeccable.style/worlds/cards/wayfinding-cartography-signage-terminal-yellow-wayfinding-hero.webp"
+    },
+    {
+      "id": "challenger-console",
+      "label": "Dark-first Developer Console",
+      "verdict": "competitive",
+      "lineage": "Graphite developer consoles with syntax-derived accents and hairline seams",
+      "thesis": "Anchorflow as a native piece of the developer's dark editor: graphite panels, syntax-coloured state, hairline seams.",
+      "palette": ["#16181d", "#e6e8ec", "#7ee0a1", "#f2c46d", "#ff6b6b", "#8ab4ff"],
+      "materials": ["graphite ground", "hairline seams", "syntax accents"],
+      "viewport": "Graphite shell, editor left with syntax highlighting, result panel right with collapsible sections.",
+      "case": "Engineers identify with it instantly, but it is closest to the cockpit the redesign is meant to remove and to every other dev tool.",
+      "risk": "Indistinct; the owner's 'cockpit-like workspace' complaint lives here.",
+      "html": ".impeccable/mocks/decision/challenger-console.html",
+      "board": "https://impeccable.style/worlds/cards/digital-design-canon-dark-first-developer-console.webp",
+      "hero": "https://impeccable.style/worlds/cards/digital-design-canon-dark-first-developer-console-hero.webp"
+    },
+    {
+      "id": "challenger-datamatics",
+      "label": "Datamatics Field",
+      "verdict": "declined",
+      "lineage": "Ryoji Ikeda's black-and-white data fields",
+      "palette": ["#000000", "#ffffff"],
+      "materials": ["barcode bars", "monospace numerics"],
+      "case": "Pure black and white cannot say critical vs pinned vs moving; loses clarity, and audience identification is aesthetic only.",
+      "kept": "Density courage: full 40-hex SHAs in tabular mono, never ellipsised.",
+      "hero": "https://impeccable.style/worlds/cards/ikeda-datamatics-hero.webp"
+    },
+    {
+      "id": "challenger-star-atlas",
+      "label": "Star Atlas",
+      "verdict": "declined",
+      "lineage": "Celestial charts with magnitude-scaled stars",
+      "palette": ["#0f1b3d", "#f4f1e8", "#d9534f"],
+      "materials": ["navy chart ground", "magnitude dots"],
+      "case": "A workflow is not a sky; jobs as constellations obscures line numbers and order.",
+      "kept": "One fixed magnitude ramp: severity also encoded by mark size.",
+      "hero": "https://impeccable.style/worlds/cards/notation-diagram-systems-star-atlas-hero.webp"
+    },
+    {
+      "id": "challenger-jcard",
+      "label": "Cassette J-card",
+      "verdict": "declined",
+      "lineage": "Hand-lettered mixtape inlays",
+      "palette": ["#ffffff", "#1f3fbf", "#c8202f"],
+      "materials": ["ballpoint on lined inlay"],
+      "case": "Handwriting undermines exactness; no audience link.",
+      "kept": "Hard halves: As pasted / Pinned as two whole sides on phones.",
+      "hero": "https://impeccable.style/worlds/cards/vernacular-ephemera-cassette-j-card-hero.webp"
+    },
+    {
+      "id": "challenger-feed",
+      "label": "Vertical Feed",
+      "verdict": "declined",
+      "lineage": "Full-bleed vertical video feeds",
+      "palette": ["#000000", "#ffffff"],
+      "materials": ["full-viewport media", "action rail"],
+      "case": "One finding per screen hides the file; engineers need the whole workflow in view.",
+      "kept": "One next step owns the verdict line at a time.",
+      "hero": "https://impeccable.style/worlds/cards/pop-culture-shelf-vertical-video-feed-surface-hero.webp"
+    }
+  ],
+  "reroll": {"registers": ["safer", "bolder"]},
+  "canon": true,
+  "canonCard": {
+    "label": "The category standard",
+    "thesis": "A clean GitHub-style light tool: white ground, Primer-like blue accent, two panes and tabs, the way hosted hardening services look, at full craft.",
+    "palette": ["#ffffff", "#1f2328", "#0969da", "#1a7f37", "#cf222e"],
+    "materials": ["clean grid", "GitHub-native controls"],
+    "viewport": "Header, H1, editor left, tabbed result right (Pinned · Findings · Permissions · Diff).",
+    "risk": "Indistinguishable from the hosted competitors by design.",
+    "html": ".impeccable/mocks/decision/canon.html"
+  },
+  "steer": true
+}
