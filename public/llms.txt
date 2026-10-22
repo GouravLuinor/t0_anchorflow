@@ -2,16 +2,16 @@
 
 > Free, in-browser tool that pins GitHub Actions to full commit SHAs and audits the workflow. Paste a .github/workflows/*.yml file; get it back with every action pinned (original tag kept as a trailing comment, the format Dependabot reads), GITHUB_TOKEN permissions listed per job, template-injection sinks flagged, and a red/green diff of the changed uses: lines. Each pin has a receipt with the GitHub API calls made and a git ls-remote command to verify it. The workflow never leaves the browser; the only network requests are optional, read-only, unauthenticated GETs to api.github.com naming the action and tag. No account, no install. Built by Nor AI.
 
-- Tool: https://anchorflow.norai.tech/tools/anchorflow
+- Tool: https://anchor.norai.tech/tools/anchorflow
 
 ## Guides
 
-- [How to pin GitHub Actions to a commit SHA](https://anchorflow.norai.tech/tools/anchorflow/learn/pin-github-actions-to-commit-sha)
-- [GITHUB_TOKEN permissions: least privilege](https://anchorflow.norai.tech/tools/anchorflow/learn/github-token-permissions)
-- [Template injection in GitHub Actions](https://anchorflow.norai.tech/tools/anchorflow/learn/github-actions-template-injection)
-- [pull_request_target and workflow_run](https://anchorflow.norai.tech/tools/anchorflow/learn/pull-request-target-security)
-- [actions/checkout persist-credentials](https://anchorflow.norai.tech/tools/anchorflow/learn/checkout-persist-credentials)
-- [Verify a pinned action SHA yourself](https://anchorflow.norai.tech/tools/anchorflow/learn/verify-pinned-action-sha)
+- [How to pin GitHub Actions to a commit SHA](https://anchor.norai.tech/tools/anchorflow/learn/pin-github-actions-to-commit-sha)
+- [GITHUB_TOKEN permissions: least privilege](https://anchor.norai.tech/tools/anchorflow/learn/github-token-permissions)
+- [Template injection in GitHub Actions](https://anchor.norai.tech/tools/anchorflow/learn/github-actions-template-injection)
+- [pull_request_target and workflow_run](https://anchor.norai.tech/tools/anchorflow/learn/pull-request-target-security)
+- [actions/checkout persist-credentials](https://anchor.norai.tech/tools/anchorflow/learn/checkout-persist-credentials)
+- [Verify a pinned action SHA yourself](https://anchor.norai.tech/tools/anchorflow/learn/verify-pinned-action-sha)
 
 ## Limits
 

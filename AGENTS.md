@@ -16,7 +16,7 @@ You are the Staff Design Engineer and Lead Systems Architect for **Anchorflow**
 - **Port**: **3004** (pinned in `package.json`, `playwright.config.ts`,
   `Dockerfile`, `docker-compose.yml`, `Caddyfile`, `README.md`; never 3000)
 - **Route**: `/tools/anchorflow` (root `app/page.tsx` is a server `redirect()`)
-- **Subdomain / PM2**: `anchorflow.norai.tech` · `anchor-norai`
+- **Subdomain / PM2**: `anchor.norai.tech` · `anchor-norai`
 - **Design Philosophy**: Zero-bloat, client-side first, sub-millisecond tactile
   feedback, a security-printing world implemented by the **Certified Copy**
   design system (see §2.1). One authored motion. Mono means machine data.

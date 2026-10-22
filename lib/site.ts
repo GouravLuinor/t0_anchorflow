@@ -6,7 +6,7 @@
  * against tool CATEGORIES, never named products, and only says what is true
  * of the category as a whole.
  */
-export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://anchorflow.norai.tech";
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://anchor.norai.tech";
 
 export const SITE = {
   name: "Anchorflow",

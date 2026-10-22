@@ -8,7 +8,7 @@ related_targets: []
 Scope: /tools/anchorflow, the whole page. Visitor mode: Operate for the first viewport and the pinning flow (paste → see what is unpinned and risky → resolve & pin → copy file or diff); Persuade/Read for the sections below (how it compares, guide, FAQ) and the /learn pages.
 Audience & job: engineers who own a repo's CI and need a reviewable PR that pins actions and fixes token grants. Proof: the live certified copy of their own workflow, the per-pin receipts, the zero-egress default path.
 Memorable moment: each pinned action wears a guilloché seal drawn from its own commit SHA; resolving draws the seals in, one per pinned line, and the same SHA always draws the same seal.
-Unresolved: anchorflow.norai.tech DNS/nginx (owner). Sign-in has no gated feature yet; it stays a quiet offer.
+Unresolved: anchor.norai.tech DNS/nginx (owner). Sign-in has no gated feature yet; it stays a quiet offer.
 
 ## Direction contract
 THESIS: The result is a certified copy of the visitor's workflow: every action either carries a seal drawn from its commit SHA or is visibly unsealed. Refuses the category default: a dark cockpit of equal panels with a metrics strip (chars/words/bytes) as the hero.

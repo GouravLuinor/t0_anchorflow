@@ -8,7 +8,7 @@ changed. It runs entirely in the visitor's browser — a workflow file is never
 uploaded, and nothing is computed server-side.
 
 - **Route**: `/tools/anchorflow` (the root `/` is a server-side `redirect()`)
-- **Port**: 3004 · **Subdomain / PM2**: `anchorflow.norai.tech` · `anchor-norai`
+- **Port**: 3004 · **Subdomain / PM2**: `anchor.norai.tech` · `anchor-norai`
 - **Version**: 1.0.0 (shipped)
 - **Design system**: Certified Copy — security-printing material: a pale
   security-paper ground, intaglio ink, seal green for pinned, indigo for a

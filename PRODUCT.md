@@ -31,7 +31,7 @@ One workflow at a time, 20–300 lines typically; the engine caps input at 256 K
 - Engine (do not change behaviour): `_lib` pure core: YAML parse with scan cap, six `uses:` classes (remoteRef, sha40, sha256, local, docker, invalid), findings (unpinned-uses, moving-ref, excessive-permissions, template-injection, dangerous-trigger, persist-credentials, resolution), grant table, offset-surgical rewrite, unified diff, ref resolver with path-safety guards, rate-limit budget, receipts. Byte-count/truncation carry-through (AC-13) and its e2e journey stay.
 - Phase B (resolve) is opt-in; auto-resolve defaults off. Zero egress on the default path is asserted by e2e.
 - Optional sign-in (shared Nor AI Supabase project) is a convenience only. Never prompted unprompted (no return-visit modal); offered only on a user action.
-- Canonical origin: https://anchorflow.norai.tech (owner decision, 2026-10-22; it replaces the earlier anchor.norai.tech, which never answered). DNS/nginx are the owner's job. Never deploy from this repo during the redesign.
+- Canonical origin: https://anchor.norai.tech (owner decision, 2026-10-22; it replaces the earlier anchor.norai.tech, which never answered). DNS/nginx are the owner's job. Never deploy from this repo during the redesign.
 
 ## Brand Commitments
 

@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 // Production runs the standalone build (`node server.js` from .next/standalone)
 // under PM2 as `anchor-norai` on port 3004, reverse-proxied to
-// anchorflow.norai.tech — output:"standalone" keeps that PM2/Docker package
+// anchor.norai.tech — output:"standalone" keeps that PM2/Docker package
 // self-contained (bundled deps, no repo-wide deploy).
 
 // CSP is the privacy moat in transport form: the app is fully client-side, so
