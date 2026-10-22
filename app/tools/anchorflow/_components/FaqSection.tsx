@@ -1,73 +1,35 @@
-"use client";
-
-import React from "react";
-import { ChevronDown } from "lucide-react";
 import { SITE } from "@/lib/site";
 
 /**
- * FAQ accordion (native <details>/<summary>, no JS required to read) plus the
- * FAQPage JSON-LD derived from the SAME array — one source, zero drift
- * (BAR §2.4 · SPEC §9 AC-18).
+ * FAQ accordion (native <details>, readable without JS). The FAQPage JSON-LD
+ * is emitted by the page from the SAME array, so the two never drift.
  */
-function buildFaqJsonLd() {
-  return {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: SITE.faqs.map((faq) => ({
-      "@type": "Question",
-      name: faq.q,
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: faq.a,
-      },
-    })),
-  };
-}
-
 export function FaqSection() {
   return (
-    <section
-      id="faq"
-      className="mx-auto w-full max-w-4xl px-4 py-14 md:px-6 lg:px-8 scroll-mt-20"
-      aria-labelledby="faq-title"
-    >
-      <div className="max-w-3xl">
-        <h2
-          id="faq-title"
-          className="text-2xl font-semibold tracking-tight text-zinc-100 sm:text-3xl"
-        >
-          Frequently answered questions
-        </h2>
-        <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-          Privacy, pinning mechanics, the permissions audit, injection detection,
-          and what happens when GitHub rate-limits your browser.
-        </p>
+    <section id="faq" aria-labelledby="faq-title" className="mx-auto w-full max-w-[1400px] px-4 py-16 sm:px-6 lg:px-8">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <div>
+          <h2 id="faq-title" className="text-[28px] font-extrabold leading-tight tracking-[-0.02em] text-ink sm:text-[34px]">
+            Questions engineers ask
+          </h2>
+          <p className="mt-3 max-w-sm text-[16px] leading-relaxed text-ink-2">
+            Privacy, pinning, Dependabot, permissions, injection and rate limits.
+          </p>
+        </div>
+        <div className="divide-y divide-line border-y border-line">
+          {SITE.faqs.map((faq) => (
+            <details key={faq.q} className="group">
+              <summary className="flex cursor-pointer list-none items-start justify-between gap-4 py-4 text-[16px] font-bold text-ink hover:text-seal">
+                {faq.q}
+                <span aria-hidden="true" className="mt-0.5 font-normal text-ink-3 transition-transform duration-150 group-open:rotate-45">
+                  +
+                </span>
+              </summary>
+              <p className="max-w-prose pb-5 text-[15px] leading-relaxed text-ink-2">{faq.a}</p>
+            </details>
+          ))}
+        </div>
       </div>
-
-      <div className="mt-8 flex flex-col gap-3">
-        {SITE.faqs.map((faq) => (
-          <details
-            key={faq.q}
-            className="group rounded-xl border border-surface-border bg-surface-base transition-colors open:border-surface-borderHover [&_summary::-webkit-details-marker]:hidden"
-          >
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl px-4 py-3.5 text-sm font-medium text-zinc-100 transition-colors duration-150 ease-out-expo hover:bg-surface-subtle/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime/40 active:scale-[0.98] motion-reduce:transition-none">
-              <span className="text-left">{faq.q}</span>
-              <ChevronDown
-                className="h-4 w-4 shrink-0 text-zinc-400 transition-transform duration-200 group-open:rotate-180"
-                aria-hidden="true"
-              />
-            </summary>
-            <div className="border-t border-surface-border/40 px-4 pb-4 pt-3 text-xs leading-relaxed text-zinc-400 sm:text-sm">
-              {faq.a}
-            </div>
-          </details>
-        ))}
-      </div>
-
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildFaqJsonLd()) }}
-      />
     </section>
   );
 }

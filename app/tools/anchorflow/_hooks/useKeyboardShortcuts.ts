@@ -49,7 +49,7 @@ export function useKeyboardShortcuts() {
         e.preventDefault();
         void copyTextToClipboard(rewritten).then((succeeded) => {
           if (succeeded) {
-            toast({ title: "Diagnostic output copied", description: "⌘⇧C" });
+            toast({ title: "Pinned file copied", description: "⌘⇧C" });
           } else {
             toast({ title: "Copy failed", variant: "destructive" });
           }

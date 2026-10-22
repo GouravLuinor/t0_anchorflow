@@ -10,7 +10,7 @@ import { test, expect, type Page } from "@playwright/test";
  *
  * The checks that ARE active are structural and contractual:
  *   · no horizontal overflow at 390px and 1440px (BAR §2.2);
- *   · the two-pane workstation stacks to one column below `lg`;
+ *   · the workstation (editor | certified copy) stacks to one column below `lg`;
  *   · ZERO external requests on the default path (autoResolve defaults false,
  *     so first paint is hermetic — SPEC §9 AC-12);
  *   · zero uncaught page errors.
@@ -24,8 +24,9 @@ async function gotoReady(page: Page) {
   await expect(page.locator("#tool-source-input")).toBeVisible({
     timeout: READY_TIMEOUT,
   });
-  // Let the first worker result settle so the panes are at full height.
-  await expect(page.getByTestId("diagnostic-echo")).toBeVisible({
+  // Let the first worker result settle so the panes are at full height (the
+  // pinned-file view is a force-mounted tab, so wait on its text).
+  await expect(page.getByTestId("diagnostic-echo")).toContainText("name: ci", {
     timeout: READY_TIMEOUT,
   });
 }
@@ -67,20 +68,21 @@ test.describe("Anchorflow responsive structure", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await gotoReady(page);
 
+    const copyPane = page.locator('section[aria-label="Certified copy"]');
     const editor = await page.locator("#tool-source-input").boundingBox();
-    const echo = await page.getByTestId("diagnostic-echo").boundingBox();
+    const echo = await copyPane.boundingBox();
     expect(editor).not.toBeNull();
     expect(echo).not.toBeNull();
-    // Stacked: the diagnostic pane starts below the editor's bottom edge.
+    // Stacked: the certified copy starts below the editor's bottom edge.
     expect(echo!.y).toBeGreaterThanOrEqual(editor!.y + editor!.height - 8);
 
     await page.setViewportSize({ width: 1440, height: 900 });
     await gotoReady(page);
     const wideEditor = await page.locator("#tool-source-input").boundingBox();
-    const wideEcho = await page.getByTestId("diagnostic-echo").boundingBox();
+    const wideEcho = await copyPane.boundingBox();
     expect(wideEditor).not.toBeNull();
     expect(wideEcho).not.toBeNull();
-    // Side by side: the echo pane starts to the RIGHT of the editor.
+    // Side by side: the certified copy starts to the RIGHT of the editor.
     expect(wideEcho!.x).toBeGreaterThanOrEqual(
       wideEditor!.x + wideEditor!.width - 8
     );
@@ -98,7 +100,7 @@ test.describe("Anchorflow responsive structure", () => {
     // Single column: each marketing section renders below the previous one and
     // never spills wider than the viewport.
     let prevBottom = cardBox!.y + cardBox!.height;
-    for (const id of ["matrix", "guide", "faq"]) {
+    for (const id of ["compare", "guide", "faq"]) {
       const box = await page.locator(`#${id}`).boundingBox();
       expect(box, `#${id} should render`).not.toBeNull();
       expect(box!.y).toBeGreaterThanOrEqual(prevBottom - 8);
@@ -120,10 +122,13 @@ test.describe("Anchorflow responsive structure", () => {
     expect(mainClassName).toContain("overflow-x-hidden");
     expect(mainClassName).not.toMatch(/max-w-/);
 
-    for (const id of ["matrix", "guide", "faq"]) {
+    for (const id of ["compare", "guide", "faq"]) {
+      // A full-bleed band (the guide) centres its first child instead.
       const className = await page
         .locator(`#${id}`)
-        .evaluate((el) => el.className);
+        .evaluate((el) =>
+          el.className.includes("mx-auto") ? el.className : (el.firstElementChild?.className ?? "")
+        );
       expect(className).toContain("mx-auto");
       expect(className).toContain("max-w-");
     }

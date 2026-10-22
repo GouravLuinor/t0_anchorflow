@@ -1,59 +1,116 @@
 /**
- * Anchorflow — the single canonical site description + FAQ source array.
+ * Anchorflow — the single canonical site content source.
  *
  * `SITE.faqs` is the ONE source the FAQ accordion renders AND the FAQPage
- * JSON-LD is derived from (BAR §2.4 · SPEC §9 AC-18), so the two can never
- * drift. Keep them in lockstep.
+ * JSON-LD is derived from, so the two can never drift. `COMPARISON` compares
+ * against tool CATEGORIES, never named products, and only says what is true
+ * of the category as a whole.
  */
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://anchorflow.norai.tech";
+
 export const SITE = {
   name: "Anchorflow",
-  shortName: "Anchorflow",
-  title:
-    "Anchorflow — Pin, Audit & Diff GitHub Actions Workflows in Your Browser",
+  title: "Pin GitHub Actions to commit SHAs, in your browser",
   description:
-    "Paste a .github/workflows YAML and get back a SHA-pinned, permission-audited, diffable workflow — 100% in your browser. The only network is a read-only, unauthenticated GET to api.github.com used to resolve owner/repo@ref to a commit SHA, and it is made by your own browser.",
-  url: "https://anchor.norai.tech",
+    "Paste a GitHub Actions workflow and get it back with every action pinned to a commit SHA, token permissions audited and template-injection sinks flagged. Free, no account, and the workflow never leaves your browser.",
   locale: "en_US",
   creator: "Nor AI",
   keywords: [
-    "anchorflow",
-    "github actions",
-    "pin actions to sha",
-    "sha pinning",
-    "actions permissions audit",
-    "GITHUB_TOKEN least privilege",
-    "workflow security audit",
-    "supply chain security ci",
-    "github actions linter",
-    "template injection github actions",
-    "offline workflow audit",
-    "zero cloud egress developer tool",
+    "pin github actions to sha",
+    "github actions sha pinning",
+    "pin actions to commit sha",
+    "github actions security audit",
+    "GITHUB_TOKEN permissions least privilege",
+    "github actions template injection",
+    "pull_request_target security",
+    "dependabot pinned actions",
+    "Anchorflow",
     "Nor AI",
   ],
   faqs: [
     {
       q: "Does my workflow leave my browser?",
-      a: "The workflow text itself never does. Parsing, classification, the permission and injection audits and the diff all run locally inside an in-browser Web Worker. The only outward bytes are the public owner/repo@ref tokens needed to resolve a pin, and those are read-only unauthenticated GET requests to api.github.com made by your own browser — there is no Anchorflow backend that ever sees your workflow. Ref resolution is off until you ask for it.",
+      a: "No. Parsing, the audits, the rewrite and the diff run in a Web Worker inside your tab, and there is no Anchorflow server that could receive the file. When you press Resolve & pin, your browser sends read-only, unauthenticated requests to api.github.com that name only the public owner/repo and ref of each action, never the workflow itself. Until you press it, nothing leaves the page.",
     },
     {
       q: "Why pin actions to a commit SHA instead of a tag?",
-      a: "A tag is a mutable pointer: whoever can push to the repository can move @v4 to different code tomorrow, and your next CI run silently executes it. A 40-hex commit SHA is immutable, so the code your workflow runs today is the code it runs on every future run. Anchorflow resolves the ref for you and appends the original ref as a trailing comment, which is exactly the format GitHub and Dependabot read themselves — so your Dependabot updates keep working.",
+      a: "A tag is a pointer that anyone with push access to the action's repository can move. If @v4 is re-pointed at malicious code, your next run executes it without any change on your side. A full 40-character commit SHA cannot be moved, so the code that runs is the code you reviewed. Anchorflow keeps the original tag as a trailing comment (uses: owner/repo@<sha> # v4), the format Dependabot and Renovate read to keep proposing updates.",
     },
     {
-      q: "What is a moving ref, and why does Anchorflow flag one?",
-      a: "A ref is moving when it names a branch or a floating major: main, master, HEAD, trunk, develop, latest, or a bare major like @v4 / @4. A dotted version such as @v4.2.0 or @1.2.3-rc.1 is a fixed point and is not flagged. A moving ref is the single most common supply-chain gap in a real workflow, and it needs no network to detect — that is why the offline report catches it on first paint.",
+      q: "Will Dependabot still update pinned actions?",
+      a: "Yes. Dependabot's github-actions ecosystem updates SHA-pinned actions and reads the version comment after the SHA. Anchorflow writes exactly that shape, so a pinned workflow keeps receiving update pull requests.",
     },
     {
-      q: "What does the permissions audit actually check?",
-      a: "It builds the effective GITHUB_TOKEN scope per job (a job block overrides the top-level block scope by scope) and flags the five canonical misconfigurations: a top-level write-all, a job-level write-all, permissions left unset while the workflow consumes GITHUB_TOKEN, an over-broad write on a read-only job, and id-token: write on a job with no OIDC consumer. A least-privilege reference workflow — permissions: {} plus per-job read scopes — produces zero findings.",
+      q: "What is a moving ref?",
+      a: "A ref that is expected to change: a branch (main, master, develop), HEAD, latest, or a bare major such as @v4 that maintainers move with every release. A dotted version such as @v4.2.0 is a fixed point by convention, but it is still a tag and can be re-pointed, so Anchorflow lists it as not pinned rather than as safe.",
     },
     {
-      q: "How does Anchorflow detect script injection?",
-      a: "Any github.event.* value interpolated into a run, with or if context is attacker-controlled text, because the contributor controls the pull-request title, body, branch name and commit message. The scanner tokenizes the whole expression — not just its leading context path — so a nested function argument, a splat or a concatenation is still caught. The remediation is always the same one indirection: capture the value in env and reference ${VAR}, which the shell never re-parses as code.",
+      q: "What does the permissions audit check?",
+      a: "It lists the GITHUB_TOKEN grant for every job, from the top-level permissions block and the job's own block, and flags write-all, permissions left unset (the token then gets the repository default), write scopes on jobs whose steps only read, and id-token: write with nothing that uses OIDC.",
     },
     {
-      q: "What happens when GitHub's API rate-limits me?",
-      a: "The 60-requests-per-hour limit is enforced by GitHub and belongs to your own browser's IP, not to Anchorflow. When you hit it, the remaining refs are marked rate-limited, their original values are kept, and the full offline report — permissions, injection, dangerous triggers, the diff of what could be pinned — still renders below. Anchorflow also holds an advisory reserve floor so one run cannot spend your whole hourly budget at once.",
+      q: "How does it find template injection?",
+      a: "GitHub expands ${{ }} expressions before a step runs, so a pull request title, branch name or issue body interpolated into run, with or if becomes code the attacker wrote. Anchorflow tokenises each expression and flags untrusted github.event fields wherever they appear. The fix is always the same: pass the value through env and read it as $VAR.",
+    },
+    {
+      q: "What happens when GitHub rate-limits me?",
+      a: "GitHub allows 60 unauthenticated API requests per hour per IP address; the limit belongs to your network, not to Anchorflow. Anchorflow keeps a small reserve, stops before spending it, marks the remaining refs as not looked up, and shows when the window resets. Everything already found stays on screen.",
+    },
+    {
+      q: "Is a pinned SHA proof that the action is safe?",
+      a: "No. Pinning guarantees the code will not change under you; it says nothing about whether that code was safe in the first place. Each pin carries a receipt with the API call that produced it and a git ls-remote command you can run to check it yourself, and you should still review the actions you depend on.",
     },
   ],
+} as const;
+
+/** The family thread: identical names and one-liners across every Nor AI tool. */
+export const FAMILY_TOOLS = [
+  { id: "tokencraft", name: "TokenCraft", line: "Token counter and LLM cost calculator", url: "https://tokens.norai.tech" },
+  { id: "schemacraft", name: "SchemaCraft", line: "JSON to Zod, Pydantic and TypeScript types", url: "https://schema.norai.tech" },
+  { id: "regexcraft", name: "RegexCraft", line: "Regex tester with plain-English explanations", url: "https://regex.norai.tech" },
+  { id: "judgewright", name: "Judgewright", line: "Calibrate your LLM judge against human labels", url: "https://judge.norai.tech" },
+  { id: "rozgar", name: "Smart Rozgar", line: "Sarkari job alerts in Hindi and English", url: "https://rozgar.norai.tech" },
+] as const;
+
+export const COMPARISON = {
+  columns: [
+    { id: "anchorflow", name: "Anchorflow" },
+    { id: "cli", name: "CLI pinners" },
+    { id: "hosted", name: "Hosted hardening services" },
+    { id: "linters", name: "Workflow linters" },
+    { id: "bots", name: "Update bots" },
+  ],
+  rows: [
+    {
+      criterion: "Where your workflow is processed",
+      cells: ["In your browser tab", "On your machine", "On the service's servers", "On your machine or in CI", "In your repository"],
+      win: true,
+    },
+    {
+      criterion: "Before the first result",
+      cells: ["Paste. No install, no account", "Install a binary", "Sign in or paste into their app", "Install and configure", "Install an app or add config"],
+      win: true,
+    },
+    {
+      criterion: "Pins tags to commit SHAs",
+      cells: ["Yes, on request", "Yes", "Yes", "Flag unpinned actions; most don't rewrite", "Keep existing pins up to date"],
+      win: false,
+    },
+    {
+      criterion: "Audits token permissions and injection",
+      cells: ["Yes, offline", "No", "Usually permissions", "Yes", "No"],
+      win: false,
+    },
+    {
+      criterion: "Shows how each pin was resolved",
+      cells: ["API hops and a git ls-remote line", "Not usually", "Not usually", "Not applicable", "In the pull request"],
+      win: true,
+    },
+    {
+      criterion: "Many repositories at once",
+      cells: ["No, one file at a time", "Yes", "Yes", "Yes", "Yes"],
+      win: false,
+    },
+  ],
+  note: "For every repository at once, or on a schedule, a CLI pinner in CI or an update bot is the better fit. Anchorflow is for the one workflow in front of you, when you want a reviewable change and the reasons behind it, without installing or granting anything.",
 } as const;

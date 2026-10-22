@@ -3,244 +3,174 @@
 @tailwind utilities;
 
 /*
- * Anchorflow — "Matchlight" dual-theme token layer.
+ * Anchorflow — "Certified Copy" token layer.
  *
- * Semantic tokens are space-separated RGB triplets so Tailwind's /opacity
- * modifiers keep working via `rgb(var(--token) / <alpha>)`. Values live on
- * :root (light) and are overridden on `.dark` (toggled by next-themes on
- * <html>). Body ink clears >10:1 on the canvas in both themes (WCAG AAA).
+ * Security-printing material: a pale security-paper ground, intaglio ink, one
+ * seal green for pinned / primary, indigo for an unpinned (moving) ref, and
+ * vermilion / ochre for the finding grades. Values are space-separated RGB
+ * triplets so Tailwind's /opacity modifiers work via `rgb(var(--x) / <a>)`.
+ * :root is light, .dark is the intaglio-night theme on the same names.
  *
- * The zinc scale is inverted: :root (light) defines dark-on-light values and
- * .dark overrides the same `--zinc-inv-*` names to light-on-dark, so one
- * variable name flips with the theme (no CSS fallback reliance — :root
- * already defines the var). Keep this file aligned with design_tokens.json.
+ * Every text role clears 4.5:1 on paper, sheet and sunk in both themes —
+ * asserted by app/tools/anchorflow/__tests__/contrast.test.ts, which parses
+ * this file. DESIGN.md + .impeccable/design.json mirror these values.
  */
 
 @layer base {
   :root {
-    /* Canvas + ink */
-    --background: 250 250 247;
-    --canvas: 250 250 247;
-    --ink: 24 26 21;
+    /* Ground, sheet (the certified copy), sunk (code wells), header band */
+    --paper: 238 242 236;
+    --sheet: 251 252 250;
+    --sunk: 227 233 225;
+    --band: 230 236 228;
 
-    /* Surface ladder */
-    --surface-base: 255 255 255;
-    --surface-subtle: 244 244 238;
-    --surface-default: 255 255 255;
-    --surface-elevated: 250 250 246;
-    --surface-border: 226 226 216;
-    --surface-border-hover: 203 203 189;
+    /* Rules */
+    --line: 201 211 200;
+    --line-strong: 159 178 163;
 
-    /* Matchlight: one accent (lime = match/primary/active) + semantic state */
-    --brand-lime: 63 98 18;
-    --brand-violet: 79 70 229;
-    --brand-amber: 146 64 14;
-    --brand-rose: 190 18 60;
+    /* Intaglio ink: body, secondary, muted */
+    --ink: 16 35 28;
+    --ink-2: 58 85 73;
+    --ink-3: 83 107 96;
 
-    /* Syntax highlighter for code export / railroad / explainer data */
-    --code-keyword: 157 23 77;
-    --code-type: 30 58 138;
-    --code-prop: 24 26 21;
-    --code-str: 4 108 78;
-    --code-num: 154 52 18;
-    --code-punct: 120 113 108;
-    --code-comment: 120 113 108;
-
-    /* Inverted zinc: `text-zinc-*` renders dark-on-light in light mode.
-       zinc-100 is near-black heading ink; zinc-950 approaches the canvas. */
-    --zinc-inv-50: 255 255 255;
-    --zinc-inv-100: 24 26 21;
-    --zinc-inv-200: 39 41 34;
-    --zinc-inv-300: 63 66 56;
-    --zinc-inv-400: 90 94 82;
-    --zinc-inv-500: 113 117 104;
-    --zinc-inv-600: 143 148 134;
-    --zinc-inv-700: 188 192 180;
-    --zinc-inv-800: 224 226 216;
-    --zinc-inv-900: 241 242 236;
-    --zinc-inv-950: 250 250 247;
+    /* Roles — each colour has one job */
+    --seal: 31 107 79;
+    --on-seal: 255 255 255;
+    --moving: 75 79 168;
+    --critical: 181 50 27;
+    --major: 138 90 0;
 
     color-scheme: light;
   }
 
   .dark {
-    /* Deep pine-green canvas + bright ink */
-    --background: 12 14 11;
-    --canvas: 12 14 11;
-    --ink: 236 238 228;
+    --paper: 13 22 19;
+    --sheet: 18 29 25;
+    --sunk: 10 17 14;
+    --band: 16 27 23;
 
-    --surface-base: 18 20 15;
-    --surface-subtle: 23 26 20;
-    --surface-default: 27 30 24;
-    --surface-elevated: 36 40 32;
-    --surface-border: 46 51 40;
-    --surface-border-hover: 66 73 58;
+    --line: 36 54 48;
+    --line-strong: 53 80 70;
 
-    /* Brighter accent set tuned for dark surfaces */
-    --brand-lime: 163 230 53;
-    --brand-violet: 167 139 250;
-    --brand-amber: 252 211 77;
-    --brand-rose: 253 164 175;
+    --ink: 227 236 230;
+    --ink-2: 169 189 178;
+    --ink-3: 138 161 150;
 
-    --code-keyword: 232 121 167;
-    --code-type: 147 197 253;
-    --code-prop: 228 228 231;
-    --code-str: 110 231 183;
-    --code-num: 253 224 71;
-    --code-punct: 150 150 160;
-    --code-comment: 150 150 160;
-
-    /* Natural zinc under inverted names: zinc-100 is near-white heading
-       ink; zinc-950 approaches the near-black canvas. */
-    --zinc-inv-50: 250 250 247;
-    --zinc-inv-100: 236 238 228;
-    --zinc-inv-200: 220 222 210;
-    --zinc-inv-300: 200 202 190;
-    --zinc-inv-400: 163 168 152;
-    --zinc-inv-500: 132 137 122;
-    --zinc-inv-600: 108 112 100;
-    --zinc-inv-700: 82 86 76;
-    --zinc-inv-800: 52 56 48;
-    --zinc-inv-900: 30 33 27;
-    --zinc-inv-950: 12 14 11;
+    --seal: 98 199 156;
+    --on-seal: 6 20 14;
+    --moving: 165 168 242;
+    --critical: 255 143 115;
+    --major: 233 182 90;
 
     color-scheme: dark;
   }
 
   * {
-    border-color: rgb(var(--surface-border));
+    border-color: rgb(var(--line));
   }
 
   html {
-    color-scheme: light;
-  }
-  html.dark {
-    color-scheme: dark;
+    scroll-padding-top: 5rem;
   }
 
   body {
-    background-color: rgb(var(--canvas));
+    background-color: rgb(var(--paper));
     color: rgb(var(--ink));
-    caret-color: rgb(var(--brand-lime));
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum";
+    caret-color: rgb(var(--seal));
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    letter-spacing: -0.01em;
-    transition: background-color 180ms ease, color 180ms ease;
   }
 
-  /* Selection = the matchlight accent, dimmed 25% — never decorative. */
   ::selection {
-    background: rgb(var(--brand-lime) / 0.25);
+    background: rgb(var(--seal) / 0.22);
     color: rgb(var(--ink));
   }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--seal));
+    outline-offset: 2px;
+  }
+
+  a {
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
 }
 
-/* Crisp top hairline + soft elevation (theme aware). One hairline only;
-   no blur — .glass-edge is a machined edge, not frosted glass. */
-.glass-edge {
-  box-shadow:
-    inset 0 1px 0 0 rgb(255 255 255 / 0.9),
-    0 12px 40px rgb(var(--ink) / 0.1);
-}
-.dark .glass-edge {
-  box-shadow:
-    inset 0 1px 0 0 rgb(255 255 255 / 0.05),
-    0 12px 40px rgb(0 0 0 / 0.45);
+/* Martian Mono at its condensed width keeps 40-hex SHAs and YAML compact. */
+.font-mono,
+pre,
+code,
+kbd {
+  font-stretch: 87.5%;
 }
 
-.glass-edge-subtle {
-  box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.9);
-}
-.dark .glass-edge-subtle {
-  box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.05);
+/* Numerals in tables and receipts line up. */
+.figures {
+  font-variant-numeric: tabular-nums;
 }
 
-/* Keycap tactility — the ONE documented shadow exception (docs/DESIGN.md §4).
-   A keycap is the element the visitor is invited to press, so it is raised:
-   a soft drop plus a light inset. The inset frays in dark, like glass-edge. */
-:root {
-  --shadow-raycast: 0 1px 2px rgb(var(--ink) / 0.08),
-    inset 0 1px 0 0 rgb(255 255 255 / 0.6);
+/*
+ * The guilloché rule under the header: two interleaved sine lattices printed
+ * in seal ink at low strength. It is the one place the pattern appears outside
+ * a seal — never page wallpaper.
+ */
+.guilloche-rule {
+  height: 8px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='8' viewBox='0 0 48 8'%3E%3Cg fill='none' stroke='%231f6b4f' stroke-width='.6' stroke-opacity='.55'%3E%3Cpath d='M0 4 Q6 0 12 4 T24 4 T36 4 T48 4'/%3E%3Cpath d='M0 4 Q6 8 12 4 T24 4 T36 4 T48 4'/%3E%3Cpath d='M-6 4 Q0 1 6 4 T18 4 T30 4 T42 4 T54 4' stroke-opacity='.3'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-position: center;
 }
-.dark {
-  --shadow-raycast: 0 1px 2px rgb(0 0 0 / 0.5),
-    inset 0 1px 0 0 rgb(255 255 255 / 0.05);
+.dark .guilloche-rule {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='8' viewBox='0 0 48 8'%3E%3Cg fill='none' stroke='%2362c79c' stroke-width='.6' stroke-opacity='.45'%3E%3Cpath d='M0 4 Q6 0 12 4 T24 4 T36 4 T48 4'/%3E%3Cpath d='M0 4 Q6 8 12 4 T24 4 T36 4 T48 4'/%3E%3Cpath d='M-6 4 Q0 1 6 4 T18 4 T30 4 T42 4 T54 4' stroke-opacity='.3'/%3E%3C/g%3E%3C/svg%3E");
 }
 
-/* The one authored motion: a single lime hairline sweeping across x once,
-   400ms, out-expo — the "recomputed" cue on the pattern underline. Attach to
-   a positioned, overflow-hidden element; the kill-switch below guards it. */
-@keyframes scan-sweep {
+/*
+ * The one authored motion: a seal draws itself in when its pin lands. Each
+ * curve carries pathLength="1", so a dash of 1 sweeps the whole stroke.
+ */
+@keyframes seal-draw {
   from {
-    transform: translateX(-100%);
+    stroke-dashoffset: 1;
   }
   to {
-    transform: translateX(100%);
+    stroke-dashoffset: 0;
   }
 }
-
-.scan-sweep {
-  position: relative;
-  overflow: hidden;
-}
-.scan-sweep::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  height: 2px;
-  width: 100%;
-  pointer-events: none;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgb(var(--brand-lime) / 0.85) 50%,
-    transparent 100%
-  );
-  transform: translateX(-100%);
-  animation: scan-sweep 400ms cubic-bezier(0.16, 1, 0.3, 1) 1 both;
+.seal-draw path,
+.seal-draw circle {
+  stroke-dasharray: 1;
+  animation: seal-draw 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* Themed scrollbars — brand-neutral, thin, both engines. */
+/* Themed scrollbars. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--line-strong)) transparent;
+}
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.04);
-}
-.dark ::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.03);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbcbbd;
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #9aa094;
-}
-.dark ::-webkit-scrollbar-thumb {
-  background: #6c7064;
-  border-radius: 4px;
-}
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: #84897a;
-}
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #cbcbbd transparent;
-}
-.dark * {
-  scrollbar-width: thin;
-  scrollbar-color: #6c7064 transparent;
+  background: rgb(var(--line-strong));
+  border-radius: 2px;
 }
 
-/* Accessibility: honor reduced-motion preferences across every surface. */
+/* Global reduced-motion kill-switch. */
 @media (prefers-reduced-motion: reduce) {
   *,
-  ::before,
-  ::after {
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

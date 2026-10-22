@@ -6,19 +6,11 @@ import { describe, expect, it } from "vitest";
 /**
  * The contrast floor, measured from the SHIPPED `app/globals.css` values.
  *
- * The Matchlight ladder is defined as space-separated RGB triplets on `:root`
- * (light) and `.dark`, so this suite parses that one file and computes the real
- * WCAG 2.1 contrast ratios for the pairs the UI actually renders. A claim in
- * `docs/DESIGN.md` that a colour "clears AA" is therefore a TEST here, not a
- * sentence someone typed once.
- *
- * What is asserted (and nothing more):
- *   · ink on canvas > 10:1 in BOTH themes (AAA body text);
- *   · the secondary/muted zinc steps (300/400/500) ≥ 4.5:1 on the surfaces they
- *     are used on (AA);
- *   · the retired `text-zinc-600` separator pair is BELOW 4.5:1 — the exact
- *     reason the status-strip `/` glyphs wear zinc-500 today. A regression back
- *     to zinc-600 fails here.
+ * The Certified Copy tokens are RGB triplets on `:root` (light) and `.dark`, so
+ * this suite parses that one file and computes the real WCAG 2.1 ratios for
+ * every text role on every ground it is painted on, including the composited
+ * tints (the editor well, the diff rows, the notices). A claim in DESIGN.md
+ * that a colour "clears AA" is a TEST here.
  */
 
 const ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
@@ -71,55 +63,49 @@ function over(top: Rgb, bottom: Rgb, alpha: number): Rgb {
 
 const ratio = (fg: Rgb, bg: Rgb) => Math.round(contrast(fg, bg) * 100) / 100;
 
-/**
- * The status strip of the workstation card: `bg-surface-subtle/30` painted over
- * the card's `bg-surface-base`. Every separator / caption colour is measured on
- * that composited background, because that is where they render.
- */
-const STRIP_LIGHT = over(LIGHT["surface-subtle"], LIGHT["surface-base"], 0.3);
-const STRIP_DARK = over(DARK["surface-subtle"], DARK["surface-base"], 0.3);
+const TEXT_ROLES = ["ink", "ink-2", "ink-3", "seal", "moving", "critical", "major"] as const;
 
-/** The diagnostic pane body: `bg-surface-base/30` over the workstation card. */
-const PANE_LIGHT = over(LIGHT["surface-base"], LIGHT["surface-base"], 0.3);
-const PANE_DARK = over(DARK["surface-base"], DARK["surface-base"], 0.3);
+/** Every ground a text role is painted on, composited the way the page paints it. */
+function grounds(t: Record<string, Rgb>): Record<string, Rgb> {
+  const sunkOnSheet = over(t["sunk"], t["sheet"], 0.7);
+  return {
+    paper: t["paper"],
+    sheet: t["sheet"],
+    band: t["band"],
+    "editor well (sunk/60 on sheet)": over(t["sunk"], t["sheet"], 0.6),
+    "code well (sunk/70 on sheet)": sunkOnSheet,
+    "compare column (seal/10 on sheet)": over(t["seal"], t["sheet"], 0.1),
+    "notice (major/10 on sheet)": over(t["major"], t["sheet"], 0.1),
+  };
+}
 
-describe("contrast — ink on canvas (AAA, both themes)", () => {
-  it("light: ink clears 10:1 on the canvas", () => {
-    const value = ratio(LIGHT["ink"], LIGHT["canvas"]);
-    expect(value).toBeGreaterThan(10);
+describe.each([
+  ["light", LIGHT],
+  ["dark", DARK],
+] as const)("contrast — %s theme", (_name, tokens) => {
+  it("ink clears 12:1 on paper (AAA body text)", () => {
+    expect(ratio(tokens["ink"], tokens["paper"])).toBeGreaterThan(12);
   });
 
-  it("dark: ink clears 10:1 on the canvas", () => {
-    const value = ratio(DARK["ink"], DARK["canvas"]);
-    expect(value).toBeGreaterThan(10);
-  });
-});
+  for (const [groundName, ground] of Object.entries(grounds(tokens))) {
+    it(`every text role clears AA on ${groundName}`, () => {
+      for (const role of TEXT_ROLES) {
+        expect(ratio(tokens[role], ground), `${role} on ${groundName}`).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+  }
 
-describe("contrast — the inverted zinc steps on the surfaces they render on", () => {
-  it("zinc-300 (secondary) clears AA on the diagnostic pane in both themes", () => {
-    expect(ratio(LIGHT["zinc-inv-300"], PANE_LIGHT)).toBeGreaterThanOrEqual(4.5);
-    expect(ratio(DARK["zinc-inv-300"], PANE_DARK)).toBeGreaterThanOrEqual(4.5);
-  });
-
-  it("zinc-400 (muted) clears AA on the status strip in both themes", () => {
-    expect(ratio(LIGHT["zinc-inv-400"], STRIP_LIGHT)).toBeGreaterThanOrEqual(4.5);
-    expect(ratio(DARK["zinc-inv-400"], STRIP_DARK)).toBeGreaterThanOrEqual(4.5);
+  it("diff lines clear AA on their own tinted rows", () => {
+    const well = over(tokens["sunk"], tokens["sheet"], 0.7);
+    expect(ratio(tokens["seal"], over(tokens["seal"], well, 0.1))).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(tokens["critical"], over(tokens["critical"], well, 0.1))).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("zinc-500 (the status-strip separator glyph) clears AA in both themes", () => {
-    expect(ratio(LIGHT["zinc-inv-500"], STRIP_LIGHT)).toBeGreaterThanOrEqual(4.5);
-    expect(ratio(DARK["zinc-inv-500"], STRIP_DARK)).toBeGreaterThanOrEqual(4.5);
+  it("the primary button label clears AA on seal", () => {
+    expect(ratio(tokens["on-seal"], tokens["seal"])).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("zinc-600 (retired) does NOT clear AA — it must stay off the separator", () => {
-    expect(ratio(LIGHT["zinc-inv-600"], STRIP_LIGHT)).toBeLessThan(4.5);
-    expect(ratio(DARK["zinc-inv-600"], STRIP_DARK)).toBeLessThan(4.5);
-  });
-});
-
-describe("contrast — the brand accent on the canvas", () => {
-  it("brand-lime clears AA on the canvas in both themes", () => {
-    expect(ratio(LIGHT["brand-lime"], LIGHT["canvas"])).toBeGreaterThanOrEqual(4.5);
-    expect(ratio(DARK["brand-lime"], DARK["canvas"])).toBeGreaterThanOrEqual(4.5);
+  it("the inverted toggle (paper on ink) clears AA", () => {
+    expect(ratio(tokens["paper"], tokens["ink"])).toBeGreaterThanOrEqual(4.5);
   });
 });

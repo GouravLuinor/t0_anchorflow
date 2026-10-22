@@ -1,0 +1,29 @@
+# Anchorflow
+
+> Free, in-browser tool that pins GitHub Actions to full commit SHAs and audits the workflow. Paste a .github/workflows/*.yml file; get it back with every action pinned (original tag kept as a trailing comment, the format Dependabot reads), GITHUB_TOKEN permissions listed per job, template-injection sinks flagged, and a red/green diff of the changed uses: lines. Each pin has a receipt with the GitHub API calls made and a git ls-remote command to verify it. The workflow never leaves the browser; the only network requests are optional, read-only, unauthenticated GETs to api.github.com naming the action and tag. No account, no install. Built by Nor AI.
+
+- Tool: https://anchorflow.norai.tech/tools/anchorflow
+
+## Guides
+
+- [How to pin GitHub Actions to a commit SHA](https://anchorflow.norai.tech/tools/anchorflow/learn/pin-github-actions-to-commit-sha)
+- [GITHUB_TOKEN permissions: least privilege](https://anchorflow.norai.tech/tools/anchorflow/learn/github-token-permissions)
+- [Template injection in GitHub Actions](https://anchorflow.norai.tech/tools/anchorflow/learn/github-actions-template-injection)
+- [pull_request_target and workflow_run](https://anchorflow.norai.tech/tools/anchorflow/learn/pull-request-target-security)
+- [actions/checkout persist-credentials](https://anchorflow.norai.tech/tools/anchorflow/learn/checkout-persist-credentials)
+- [Verify a pinned action SHA yourself](https://anchorflow.norai.tech/tools/anchorflow/learn/verify-pinned-action-sha)
+
+## Limits
+
+- One workflow file at a time, up to 256 KiB and 2,000 uses: lines.
+- Does not follow reusable workflows or composite actions into other repositories.
+- GitHub allows 60 unauthenticated API requests per hour per IP; refs beyond that are left unpinned and marked.
+- A pinned SHA freezes code; it does not prove the action is safe.
+
+## More free tools from Nor AI
+
+- [TokenCraft](https://tokens.norai.tech): token counter and LLM cost calculator
+- [SchemaCraft](https://schema.norai.tech): JSON to Zod, Pydantic and TypeScript types
+- [RegexCraft](https://regex.norai.tech): regex tester with plain-English explanations
+- [Judgewright](https://judge.norai.tech): calibrate your LLM judge against human labels
+- [Smart Rozgar](https://rozgar.norai.tech): Sarkari job alerts in Hindi and English

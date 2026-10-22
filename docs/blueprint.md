@@ -159,7 +159,7 @@ takes each report field from the payload only when defined.
   HEALTHCHECK), `docker-compose.yml` (`127.0.0.1:3004:3004`), `Caddyfile`,
   README.
 - **Production truth:** PM2 `anchor-norai` on the VPS, `npm run build &&
-  npm start` standalone output, nginx + certbot TLS on `anchor.norai.tech`
+  npm start` standalone output, nginx + certbot TLS on `anchorflow.norai.tech`
   (see `DEPLOYMENT_PLAYBOOK.md` at the repo root).
 - **Parallel Docker path:** 3-stage unprivileged image + compose + SHA-gated
   `deploy.sh` (`DEPLOY_CONFIRM=1` before `git reset --hard origin/main`).

@@ -1,219 +1,103 @@
-"use client";
-
-import { Cpu, Lock, ShieldCheck, TriangleAlert } from "lucide-react";
-import type { ReactNode } from "react";
-import { Keycap } from "@/components/ui/keycap";
-import { Toaster } from "@/components/ui/toast";
-import { TRUST_PILLS } from "./_lib/presets";
-import { useToolWorker } from "./_hooks/useToolWorker";
-import { useKeyboardShortcuts } from "./_hooks/useKeyboardShortcuts";
-import { TopToolbar } from "./_components/TopToolbar";
-import { RawEditorPane } from "./_components/RawEditorPane";
-import { DiagnosticPane } from "./_components/DiagnosticPane";
-import { StatusLiveRegion } from "./_components/StatusLiveRegion";
-import { SiteHeader } from "./_components/SiteHeader";
-import { StudioFooter } from "./_components/StudioFooter";
-import { CommandPalette } from "./_components/CommandPalette";
-import { CompetitorMatrix } from "./_components/CompetitorMatrix";
-import { KnowledgeHub } from "./_components/KnowledgeHub";
+import { Check } from "lucide-react";
+import { SITE, SITE_URL } from "@/lib/site";
+import { CompareSection } from "./_components/CompareSection";
 import { FaqSection } from "./_components/FaqSection";
-import { SignInModal } from "./_components/auth/SignInModal";
-import { useToolStore } from "./_store/useToolStore";
+import { GuideSection } from "./_components/GuideSection";
+import { SiteFooter } from "./_components/SiteFooter";
+import { SiteHeader } from "./_components/SiteHeader";
+import { Workstation } from "./_components/Workstation";
 
-/** One icon per trust pill, keyed by the id `presets.ts` owns. */
-const TRUST_PILL_ICONS: Record<string, ReactNode> = {
-  egress: (
-    <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-brand-lime" aria-hidden="true" />
-  ),
-  worker: <Cpu className="h-3.5 w-3.5 shrink-0 text-zinc-400" aria-hidden="true" />,
-  account: <Lock className="h-3.5 w-3.5 shrink-0 text-zinc-400" aria-hidden="true" />,
-};
+const PROMISES = ["Never uploaded", "No account", "Free"] as const;
+
+function jsonLd() {
+  return [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      name: "Anchorflow",
+      url: `${SITE_URL}/tools/anchorflow`,
+      description: SITE.description,
+      applicationCategory: "DeveloperApplication",
+      operatingSystem: "Any (runs in the browser)",
+      browserRequirements: "Requires JavaScript and Web Workers",
+      isAccessibleForFree: true,
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      featureList: [
+        "Pin GitHub Actions to full commit SHAs",
+        "GITHUB_TOKEN permission audit per job",
+        "Template-injection detection in run, with and if",
+        "pull_request_target and persist-credentials checks",
+        "Red/green diff of the pinned uses: lines",
+        "Per-pin receipt with a git ls-remote check",
+      ],
+      creator: { "@type": "Organization", name: "Nor AI", url: "https://norai.tech" },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: SITE.faqs.map((faq) => ({
+        "@type": "Question",
+        name: faq.q,
+        acceptedAnswer: { "@type": "Answer", text: faq.a },
+      })),
+    },
+  ];
+}
 
 export default function ToolPage() {
-  useToolWorker();
-  useKeyboardShortcuts();
-
-  const isWorkerAvailable = useToolStore((s) => s.isWorkerAvailable);
-  // The active compute engine, exposed for the e2e journeys that must be able
-  // to tell the worker pipeline from the main-thread fallback. `pending` is the
-  // pre-spawn state; `worker` once the chunk is live; `main` when degraded.
-  const engine =
-    isWorkerAvailable === null
-      ? "pending"
-      : isWorkerAvailable
-        ? "worker"
-        : "main";
-  const isProcessing = useToolStore((s) => s.isProcessing);
-  const errorMessage = useToolStore((s) => s.errorMessage);
-  const metrics = useToolStore((s) => s.metrics);
-
   return (
     <>
       <a
         href="#workstation"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:border focus:border-surface-border focus:bg-surface-default focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-brand-lime/70 focus:shadow-elevated"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-ink focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-paper"
       >
-        Skip to workstation
+        Skip to the workflow
       </a>
 
       <SiteHeader />
 
-      <main className="relative flex w-full flex-col gap-4 overflow-x-hidden md:gap-8">
-        <section
-          aria-label="Anchorflow workstation"
-          className="mx-auto w-full max-w-7xl px-4 pb-6 pt-4 md:px-6 md:pt-5 lg:px-8"
-        >
-          {/* Station header: single <h1> + tagline + trust pills */}
-          <header className="mb-3 flex flex-col justify-between gap-3 md:flex-row md:items-center">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="whitespace-nowrap text-xl font-bold tracking-tight text-ink sm:text-2xl">
-                  Anchorflow
-                </h1>
-                <span className="shrink-0 rounded-md border border-surface-border bg-surface-subtle px-2 py-0.5 font-mono text-[11px] text-zinc-400">
-                  SHA pinning · permission audit · diff
-                </span>
-              </div>
-              <p className="mt-0.5 max-w-xl text-xs text-zinc-400">
-                Paste a GitHub Actions workflow; get a pinned, audited, diffable
-                one back — computed in this tab, never uploaded.
+      <main className="w-full overflow-x-hidden">
+        <section aria-labelledby="page-title" className="mx-auto w-full max-w-[1400px] px-4 pb-6 pt-8 sm:px-6 md:pt-10 lg:px-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <h1
+                id="page-title"
+                className="text-[32px] font-extrabold leading-[1.06] tracking-[-0.025em] text-ink sm:text-[42px] lg:text-[48px]"
+              >
+                Pin GitHub Actions to commit SHAs, in your browser
+              </h1>
+              <p className="mt-3 max-w-[60ch] text-[16px] leading-relaxed text-ink-2 sm:text-[17px]">
+                Paste a workflow. Get it back with every action pinned, every token grant audited and a receipt for each
+                pin. The file never leaves this tab.
               </p>
             </div>
-
-            <ul className="flex shrink-0 flex-wrap items-center gap-2">
-              {TRUST_PILLS.map((pill) => (
-                <li
-                  key={pill.id}
-                  className="flex items-center gap-1.5 rounded-md border border-surface-border bg-surface-subtle/50 px-2.5 py-1 font-mono text-[11px]"
-                >
-                  {TRUST_PILL_ICONS[pill.id]}
-                  <span className="font-medium text-zinc-300">{pill.label}</span>
+            <ul className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm font-semibold text-ink-2 lg:pb-1.5">
+              {PROMISES.map((p) => (
+                <li key={p} className="inline-flex items-center gap-1.5">
+                  <Check className="h-4 w-4 text-seal" aria-hidden="true" />
+                  {p}
                 </li>
               ))}
             </ul>
-          </header>
-
-          {/* The one workstation card */}
-          <div
-            id="workstation"
-            data-engine={engine}
-            className="flex flex-col overflow-hidden rounded-2xl border border-surface-border bg-surface-base glass-edge scroll-mt-20"
-          >
-            <TopToolbar />
-
-            {isWorkerAvailable === false && (
-              <div className="flex items-start gap-2 border-b border-surface-border bg-brand-amber/10 px-4 py-2.5 font-mono text-xs text-brand-amber">
-                <TriangleAlert
-                  className="mt-0.5 h-3.5 w-3.5 shrink-0"
-                  aria-hidden="true"
-                />
-                <span>
-                  Main-thread mode active — Web Worker unavailable. Analysis
-                  still runs, on the same core.
-                </span>
-              </div>
-            )}
-
-            <section
-              aria-label="Interactive Workspace"
-              className="grid grid-cols-1 divide-y divide-surface-border overflow-hidden lg:h-[620px] lg:grid-cols-2 lg:divide-x lg:divide-y-0"
-            >
-              <div className="h-full min-h-0 overflow-hidden">
-                <RawEditorPane />
-              </div>
-              <div className="h-full min-h-0 overflow-hidden">
-                <DiagnosticPane />
-              </div>
-            </section>
-
-            {/* Status strip: state · chars · words · bytes · ms */}
-            <div className="flex select-none flex-wrap items-center justify-between gap-3 border-t border-surface-border bg-surface-subtle/30 px-4 py-2 font-mono text-[11px] text-zinc-400">
-              <div className="flex items-center gap-3">
-                {isProcessing ? (
-                  <span className="flex items-center gap-1.5 text-zinc-300">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-lime motion-reduce:animate-none" />
-                    Analyzing…
-                  </span>
-                ) : errorMessage ? (
-                  <span className="flex items-center gap-1.5 font-medium text-brand-rose">
-                    <TriangleAlert className="h-3.5 w-3.5" aria-hidden="true" />
-                    Analysis failed
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1.5 text-zinc-300">
-                    <span className="h-1.5 w-1.5 rounded-full bg-brand-lime" />
-                    Ready
-                  </span>
-                )}
-                <span aria-hidden="true">•</span>
-                <span>
-                  <strong className="tabular-nums text-zinc-200">
-                    {metrics.characterCount}
-                  </strong>{" "}
-                  chars
-                </span>
-                <span aria-hidden="true">•</span>
-                <span>
-                  <strong className="tabular-nums text-zinc-200">
-                    {metrics.wordCount}
-                  </strong>{" "}
-                  words
-                </span>
-                <span aria-hidden="true">•</span>
-                <span>
-                  <strong className="tabular-nums text-brand-lime">
-                    {metrics.byteCount}
-                  </strong>{" "}
-                  bytes
-                </span>
-                <span aria-hidden="true">•</span>
-                <span className="hidden sm:inline">
-                  <strong className="tabular-nums text-zinc-200">
-                    {Math.round(metrics.parseTimeMs * 100) / 100}ms
-                  </strong>
-                </span>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="hidden items-center gap-3 md:flex">
-                  <span className="flex items-center gap-1.5">
-                    <Keycap size="xs">⌘K</Keycap> Commands
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <Keycap size="xs">⌘P</Keycap> Example
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <Keycap size="xs">⌘⇧C</Keycap> Copy
-                  </span>
-                </div>
-                <span aria-hidden="true" className="hidden text-zinc-500 md:inline">
-                  /
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <span>100% In-Browser</span>
-                  <span aria-hidden="true" className="text-zinc-500">
-                    /
-                  </span>
-                  <span className="font-medium text-brand-lime">
-                    0 byte upload
-                  </span>
-                </div>
-              </div>
-            </div>
           </div>
         </section>
 
-        <CompetitorMatrix />
-        <KnowledgeHub />
+        <div className="mx-auto w-full max-w-[1400px] px-4 pb-10 sm:px-6 lg:px-8">
+          <Workstation />
+        </div>
+
+        <CompareSection />
+        <GuideSection />
         <FaqSection />
       </main>
 
-      <StudioFooter />
+      <SiteFooter />
 
-      <StatusLiveRegion />
-      <CommandPalette />
-      <SignInModal />
-      <Toaster />
+      <script
+        type="application/ld+json"
+        // Static, same-origin content from lib/site.ts — no user input.
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd()) }}
+      />
     </>
   );
 }

@@ -5,7 +5,7 @@ import { defineConfig, devices } from "@playwright/test";
  *
  * Production serves the STANDALONE build (`node .next/standalone/server.js`,
  * port 3004) under PM2 as `anchor-norai`, reverse-proxied to
- * anchor.norai.tech. So the webServer builds once and then boots THAT SAME
+ * anchorflow.norai.tech. So the webServer builds once and then boots THAT SAME
  * standalone server with its static/public assets staged in — exactly what the
  * Dockerfile does — so e2e exercises the shipped artifact (CSP, worker
  * packaging, hydration), not a loose dev server.

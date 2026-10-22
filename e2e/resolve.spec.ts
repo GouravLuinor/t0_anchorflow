@@ -66,7 +66,8 @@ async function gotoReady(page: Page) {
   await expect(page.locator("#tool-source-input")).toBeVisible({
     timeout: READY_TIMEOUT,
   });
-  await expect(page.getByTestId("diagnostic-echo")).toBeVisible({
+  // The pinned-file view is a force-mounted tab: wait for its text, not its box.
+  await expect(page.getByTestId("diagnostic-echo")).toContainText("name: ci", {
     timeout: READY_TIMEOUT,
   });
 }
@@ -128,7 +129,7 @@ test.describe("Resolve & pin", () => {
     const items = page.getByTestId("receipt-item");
     await expect(items).toHaveCount(2);
 
-    const checkout = items.filter({ hasText: "actions/checkout@v4" }).first();
+    const checkout = page.locator('[data-testid="receipt-item"][data-ref="actions/checkout@v4"]');
     await expect(checkout).toHaveAttribute("data-status", "resolved");
     await expect(checkout.getByTestId("receipt-chain")).toContainText(
       "GET /repos/actions/checkout/git/ref/tags/v4 → 11d5960a3267… (200)"
@@ -184,10 +185,7 @@ jobs:
 `);
     await page.getByTestId("resolve-pin-button").click();
 
-    const item = page
-      .getByTestId("receipt-item")
-      .filter({ hasText: "pnpm/pnpm@v9.12.0" })
-      .first();
+    const item = page.locator('[data-testid="receipt-item"][data-ref="pnpm/pnpm@v9.12.0"]');
     await expect(item).toHaveAttribute("data-status", "resolved");
     // BOTH hops: the tag ref names the TAG OBJECT, the deref names the COMMIT.
     await expect(item.getByTestId("receipt-chain")).toContainText(
@@ -254,8 +252,8 @@ jobs:
 
     const item = page.getByTestId("receipt-item").first();
     await expect(item).toHaveAttribute("data-status", "unknown-ref");
-    await expect(item).toContainText("offline report above is still complete");
-    // The finding carries the same friendly copy (ARCH §8).
+    await expect(item).toContainText("It is still unpinned");
+    // The finding carries the engine's friendly copy (ARCH §8).
     await expect(
       page.getByTestId("finding-item").filter({ hasText: "unknown ref" }).first()
     ).toContainText("offline report above is still complete");
@@ -289,8 +287,9 @@ jobs:
     await expect(page.getByTestId("diff-changed-count")).toContainText(
       "0 changes"
     );
-    // Nothing to spend quota on, so the action disables itself.
-    await expect(page.getByTestId("resolve-pin-button")).toBeDisabled();
+    // Nothing to spend quota on, so the page stops offering the action.
+    await expect(page.getByText("Every action is already pinned to a commit.")).toBeVisible();
+    await expect(page.getByTestId("resolve-pin-button")).toHaveCount(0);
     await expect(page.getByTestId("receipt-list")).toHaveCount(0);
     // And the echo is exactly the pinned text that went in.
     await expect(page.getByTestId("diagnostic-echo")).toContainText(
@@ -309,7 +308,7 @@ jobs:
       "11d5960a326750d5838078e36cf38b85af677262"
     );
 
-    await page.getByRole("button", { name: /^copy$/i }).click();
+    await page.getByRole("button", { name: /^copy pinned file$/i }).click();
     const copied = await page.evaluate(() => navigator.clipboard.readText());
     expect(copied).toContain(
       "actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4"
@@ -344,9 +343,7 @@ jobs:
     const banner = page.getByTestId("rate-limit-banner");
     await expect(banner).toHaveAttribute("data-remaining", "0");
     await expect(banner).toContainText("hourly API limit is reached");
-    await expect(banner).toContainText(
-      "The offline report above is still complete"
-    );
+    await expect(banner).toContainText("The offline report is still complete");
     await expect(banner).toContainText("0 of 60 left");
     // The offline report is intact.
     await expect(page.getByTestId("diagnostic-echo")).toContainText(
