@@ -1,0 +1,94 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&family=Martian+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0}
+body{width:1440px;height:900px;overflow:hidden;background:#eef2ec;color:#10231c;font:15px/1.5 "Schibsted Grotesk",sans-serif}
+.mono{font-family:"Martian Mono",monospace;font-size:12px}
+header{height:60px;display:flex;align-items:center;gap:40px;padding:0 48px;border-bottom:1px solid #c9d3c8;background:#e6ece4}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;letter-spacing:-.01em}
+nav{display:flex;gap:28px;font-weight:500;color:#2c4a3e}
+.right{margin-left:auto;display:flex;gap:16px;align-items:center;color:#2c4a3e;font-size:13px}
+.guil{height:6px;background:repeating-linear-gradient(90deg,#1f6b4f22 0 1px,transparent 1px 5px),repeating-linear-gradient(60deg,#1f6b4f18 0 1px,transparent 1px 7px)}
+.hero{padding:36px 48px 24px;display:flex;align-items:flex-end;justify-content:space-between}
+h1{font-size:40px;line-height:1.08;font-weight:800;letter-spacing:-.025em;max-width:760px}
+.sub{color:#3a5549;margin-top:10px;max-width:640px}
+.promises{display:flex;gap:22px;font-size:13px;color:#2c4a3e}
+.promises b{color:#1f6b4f}
+.work{display:grid;grid-template-columns:40fr 60fr;gap:0;margin:0 48px;border:1px solid #b9c6b8;background:#fbfcfa;height:600px}
+.pane{border-right:1px solid #c9d3c8;display:flex;flex-direction:column}
+.ph{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-bottom:1px solid #dbe3d9;font-weight:600;font-size:13px}
+pre{padding:14px 18px;font-family:"Martian Mono",monospace;font-size:11.5px;line-height:1.75;color:#24392f;white-space:pre}
+.cm{color:#6e8379}.hl{background:#fde7d8}
+.copy{padding:22px 26px 0}
+.verdict{font-size:21px;font-weight:700;letter-spacing:-.01em;line-height:1.3}
+.verdict .c{color:#c4361b}.verdict .m{color:#b26b00}.verdict .p{color:#4b4fa8}
+.act{display:flex;align-items:center;gap:16px;margin:16px 0 18px}
+.btn{background:#1f6b4f;color:#fff;font-weight:700;padding:11px 18px;border-radius:2px}
+.btn2{border:1px solid #9fb2a3;padding:10px 16px;font-weight:600;border-radius:2px;color:#1f3d31}
+.disc{font-size:12.5px;color:#4a6357}
+.ledger{border-top:1px solid #10231c}
+.row{display:grid;grid-template-columns:46px 1fr 160px 90px;align-items:center;gap:14px;padding:9px 0;border-bottom:1px solid #dbe3d9}
+.st{font-size:11px;font-weight:700;letter-spacing:.04em}
+.mv{color:#4b4fa8}.ok{color:#1f6b4f}.lc{color:#6e8379}
+.tabs{display:flex;gap:26px;padding:14px 0 0;font-weight:600;font-size:13.5px;color:#4a6357}
+.tabs .on{color:#10231c;border-bottom:2px solid #1f6b4f;padding-bottom:6px}
+.open{width:30px;height:30px;border:1px dashed #9aa79d;border-radius:50%;display:grid;place-items:center;font-size:9px;color:#6e8379}
+</style></head><body>
+<header>
+ <div class="brand"><svg width="26" height="26" viewBox="0 0 26 26"><g fill="none" stroke="#1f6b4f" stroke-width=".8"><circle cx="13" cy="13" r="12"/><ellipse cx="13" cy="13" rx="12" ry="5"/><ellipse cx="13" cy="13" rx="12" ry="5" transform="rotate(60 13 13)"/><ellipse cx="13" cy="13" rx="12" ry="5" transform="rotate(120 13 13)"/></g></svg>Anchorflow</div>
+ <nav><span>Pin a workflow</span><span>Compare</span><span>Guide</span><span>FAQ</span></nav>
+ <div class="right"><span>◐</span><span>Built by <b>Nor AI</b></span></div>
+</header>
+<div class="guil"></div>
+<section class="hero">
+ <div><h1>Pin GitHub Actions to commit SHAs, in your browser</h1>
+ <p class="sub">Paste a workflow. Get it back with every action pinned, every token grant audited and a receipt for each pin. The file never leaves this tab.</p></div>
+ <div class="promises"><span><b>✓</b> Never uploaded</span><span><b>✓</b> No account</span><span><b>✓</b> Free</span></div>
+</section>
+<div class="work">
+ <div class="pane">
+  <div class="ph"><span>Your workflow · ci.yml</span><span class="mono" style="color:#6e8379">60 lines</span></div>
+<pre><span class="cm"># paste your .github/workflows/*.yml</span>
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4.2.0
+      - run: npm ci &amp;&amp; npm test
+  verify:
+    steps:
+      - uses: actions/checkout@11bd719…  <span class="cm"># v4.2.2</span>
+  label:
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+<span class="hl">            console.log("${{ github.event.pull_request.title }}")</span></pre>
+ </div>
+ <div>
+  <div class="ph"><span>Certified copy</span><span class="mono" style="color:#6e8379">computed in this tab · 17 ms</span></div>
+  <div class="copy">
+   <p class="verdict"><span class="p">4 of 8 actions ride moving tags.</span> <span class="c">1 critical injection</span>, <span class="m">3 over-broad grants</span>.</p>
+   <div class="act"><span class="btn">Resolve &amp; pin 4 refs</span><span class="btn2">Copy file</span><span class="disc">Makes 4 read-only requests to api.github.com from your browser. Nothing else.</span></div>
+   <div class="ledger">
+    <div class="row"><div class="open">@v4</div><span class="mono">actions/checkout@v4</span><span class="st mv">MOVING TAG</span><span class="mono lc">line 13</span></div>
+    <div class="row"><div class="open">@v4.2</div><span class="mono">actions/setup-node@v4.2.0</span><span class="st mv">MOVING TAG</span><span class="mono lc">line 14</span></div>
+    <div class="row"><svg width="30" height="30" viewBox="0 0 30 30"><g fill="none" stroke="#1f6b4f" stroke-width=".6"><circle cx="15" cy="15" r="14"/><ellipse cx="15" cy="15" rx="14" ry="6" transform="rotate(11 15 15)"/><ellipse cx="15" cy="15" rx="14" ry="6" transform="rotate(47 15 15)"/><ellipse cx="15" cy="15" rx="14" ry="6" transform="rotate(83 15 15)"/><ellipse cx="15" cy="15" rx="14" ry="6" transform="rotate(119 15 15)"/><ellipse cx="15" cy="15" rx="14" ry="6" transform="rotate(155 15 15)"/><circle cx="15" cy="15" r="5"/></g></svg><span class="mono">actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683</span><span class="st ok">PINNED · v4.2.2</span><span class="mono lc">line 18</span></div>
+    <div class="row"><div class="open">@v7</div><span class="mono">actions/github-script@v7</span><span class="st mv">MOVING TAG</span><span class="mono lc">line 21</span></div>
+    <div class="row"><div class="open">@main</div><span class="mono">octo-org/reusable/…/release.yml@main</span><span class="st mv">MOVING BRANCH</span><span class="mono lc">line 40</span></div>
+    <div class="row"><div class="open" style="border-style:solid">./</div><span class="mono">./.github/actions/setup</span><span class="st lc">LOCAL · NOT PINNED</span><span class="mono lc">line 57</span></div>
+   </div>
+   <div class="tabs"><span class="on">Findings 4</span><span>Token grants</span><span>Diff</span><span>Receipts</span></div>
+  </div>
+ </div>
+</div>
+</body></html>

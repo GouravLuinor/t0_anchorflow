@@ -1,0 +1,40 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0}
+body{width:1440px;height:900px;overflow:hidden;background:#16181d;color:#e6e8ec;font:14px/1.5 Inter,sans-serif}
+.mono{font-family:"JetBrains Mono";font-size:12px}
+header{height:50px;display:flex;align-items:center;gap:32px;padding:0 24px;border-bottom:1px solid #2a2e36;font-size:13px}
+b.brand{font-size:15px}nav{display:flex;gap:22px;color:#9aa1ad}.r{margin-left:auto;color:#9aa1ad}
+.bar{display:flex;gap:12px;align-items:center;padding:14px 24px;border-bottom:1px solid #2a2e36}
+h1{font-size:18px;font-weight:600}.btn{margin-left:auto;background:#7ee0a1;color:#0d1a12;font-weight:600;padding:7px 14px;border-radius:4px}
+.grid{display:grid;grid-template-columns:1fr 1fr;height:790px}
+.l{border-right:1px solid #2a2e36}
+pre{padding:16px 24px;font-family:"JetBrains Mono";font-size:12px;line-height:1.8;color:#c9ced8}
+.k{color:#8ab4ff}.s{color:#f2c46d}.c{color:#6b7280}
+.sec{border-bottom:1px solid #2a2e36;padding:14px 24px}.sec h3{font-size:12px;color:#9aa1ad;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.row{display:flex;justify-content:space-between;padding:6px 0}.y{color:#f2c46d}.g{color:#7ee0a1}.r2{color:#ff6b6b}
+</style></head><body>
+<header><b class="brand">Anchorflow</b><nav><span>Workflow</span><span>Compare</span><span>Docs</span></nav><span class="r">Nor AI</span></header>
+<div class="bar"><h1>Pin GitHub Actions to commit SHAs</h1><span class="mono" style="color:#9aa1ad">· local · 17 ms</span><span class="btn">Resolve &amp; pin 4</span></div>
+<div class="grid"><div class="l"><pre><span class="k">name</span>: ci
+<span class="k">permissions</span>:
+  <span class="k">contents</span>: <span class="s">write</span>
+<span class="k">jobs</span>:
+  <span class="k">build</span>:
+    <span class="k">steps</span>:
+      - <span class="k">uses</span>: <span class="s">actions/checkout@v4</span>
+      - <span class="k">uses</span>: <span class="s">actions/setup-node@v4.2.0</span>
+  <span class="k">verify</span>:
+    <span class="k">steps</span>:
+      - <span class="k">uses</span>: <span class="s">actions/checkout@11bd719…</span> <span class="c"># v4.2.2</span></pre></div>
+<div><div class="sec"><h3>Uses · 8</h3>
+<div class="row mono"><span>actions/checkout@v4</span><span class="y">moving</span></div>
+<div class="row mono"><span>actions/setup-node@v4.2.0</span><span class="y">moving</span></div>
+<div class="row mono"><span>actions/checkout@11bd719…</span><span class="g">pinned</span></div></div>
+<div class="sec"><h3>Findings · 4</h3><div class="row"><span>Template injection in with: input</span><span class="r2">critical</span></div><div class="row"><span>Over-broad token grant · build</span><span class="y">major</span></div></div>
+<div class="sec"><h3>Token grants</h3><div class="row mono"><span>build</span><span>contents: write (inherited)</span></div></div>
+<div class="sec"><h3>Diff</h3><div class="row" style="color:#9aa1ad">No changes yet. Resolve refs to pin.</div></div>
+</div></div>
+</body></html>
