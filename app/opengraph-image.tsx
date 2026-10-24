@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { ImageResponse } from "next/og";
 import { sealGeometry } from "./tools/anchorflow/_lib/seal";
 
@@ -9,7 +11,8 @@ export const contentType = "image/png";
 
 const SHA = "11bd71901bbe5b1630ceea73d27597364c9af683";
 
-export default function OpengraphImage() {
+export default async function OpengraphImage() {
+  const mark = `data:image/png;base64,${(await readFile(join(process.cwd(), "public/nor-ai-mark.png"))).toString("base64")}`;
   const seal = sealGeometry(SHA);
   const brand = sealGeometry("anchorflow");
   return new ImageResponse(
@@ -26,7 +29,7 @@ export default function OpengraphImage() {
           fontFamily: "sans-serif",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 34, fontWeight: 800 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 34, fontWeight: 800, width: "100%" }}>
           <svg width="48" height="48" viewBox="0 0 100 100">
             <g fill="none" stroke="#1f6b4f">
               <circle cx="50" cy="50" r={brand.outerRadius + 1.5} strokeWidth="3" />
@@ -37,6 +40,10 @@ export default function OpengraphImage() {
             </g>
           </svg>
           Anchorflow
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginLeft: "auto", fontSize: 30 }}>
+            <img src={mark} width={48} height={48} alt="" />
+            by Nor AI
+          </div>
         </div>
         <div style={{ display: "flex", marginTop: 44, fontSize: 70, fontWeight: 800, lineHeight: 1.05, letterSpacing: -2, maxWidth: 1000 }}>
           Pin GitHub Actions to commit SHAs, in your browser

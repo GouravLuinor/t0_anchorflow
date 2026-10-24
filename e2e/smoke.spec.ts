@@ -593,8 +593,8 @@ test.describe("Anchorflow shell journeys", () => {
       .locator('script[type="application/ld+json"]')
       .innerText();
     const parsed = JSON.parse(jsonLd) as Array<Record<string, unknown>>;
-    expect(parsed.map((entity) => entity["@type"])).toEqual(["WebApplication", "FAQPage"]);
-    const faqPage = parsed[1] as { mainEntity: Array<{ name: string }> };
+    expect(parsed.map((entity) => entity["@type"])).toEqual(["Organization", "WebApplication", "FAQPage"]);
+    const faqPage = parsed[2] as { mainEntity: Array<{ name: string }> };
     expect(faqPage.mainEntity.length).toBeGreaterThan(0);
     expect(faqPage.mainEntity[0].name).toContain("leave my browser");
   });

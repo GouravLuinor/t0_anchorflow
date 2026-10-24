@@ -22,6 +22,11 @@ export default function LearnIndex() {
         </h1>
         <p className="mt-3 max-w-[60ch] text-[17px] leading-relaxed text-ink-2">
           The six habits Anchorflow checks, each with the risk, the before and after, and how to verify it yourself.
+          Published by{" "}
+          <a href="https://norai.tech" className="font-semibold text-ink underline hover:text-seal">
+            Nor AI
+          </a>
+          .
         </p>
         <ul className="mt-8 max-w-3xl divide-y divide-line border-y border-line">
           {LEARN_TOPICS.map((t) => (

@@ -11,10 +11,12 @@ export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://anchor.nora
 export const SITE = {
   name: "Anchorflow",
   title: "Pin GitHub Actions to commit SHAs, in your browser",
+  /** Search-result title: under 60 characters so it is not truncated. */
+  seoTitle: "Pin GitHub Actions to commit SHAs · Anchorflow by Nor AI",
   description:
     "Paste a GitHub Actions workflow and get it back with every action pinned to a commit SHA, token permissions audited and template-injection sinks flagged. Free, no account, and the workflow never leaves your browser.",
   locale: "en_US",
-  creator: "Nor AI",
+  creator: "Nor AI Technologies",
   keywords: [
     "pin github actions to sha",
     "github actions sha pinning",
@@ -63,11 +65,26 @@ export const SITE = {
   ],
 } as const;
 
+/** The company behind the tool. `orgId` matches the @id norai.tech declares, so crawlers join the two sites. */
+export const COMPANY = {
+  name: "Nor AI Technologies",
+  short: "Nor AI",
+  url: "https://norai.tech",
+  orgId: "https://norai.tech/#organization",
+  logo: `${SITE_URL}/nor-ai-mark.png`,
+  contactUrl: "https://norai.tech/contact",
+  aboutUrl: "https://norai.tech/mission",
+  toolsUrl: "https://norai.tech/products",
+  blurb: "Custom AI, web and 3D software delivered into your own infrastructure. You keep the code.",
+  place: "Ghazipur, Uttar Pradesh, India",
+} as const;
+
 /** The family thread: identical names and one-liners across every Nor AI tool. */
 export const FAMILY_TOOLS = [
   { id: "tokencraft", name: "TokenCraft", line: "Token counter and LLM cost calculator", url: "https://tokens.norai.tech" },
   { id: "schemacraft", name: "SchemaCraft", line: "JSON to Zod, Pydantic and TypeScript types", url: "https://schema.norai.tech" },
   { id: "regexcraft", name: "RegexCraft", line: "Regex tester with plain-English explanations", url: "https://regex.norai.tech" },
+  { id: "rag", name: "Grounded RAG", line: "Cited answers from your own documents, privately", url: "https://rag.norai.tech" },
   { id: "judgewright", name: "Judgewright", line: "Calibrate your LLM judge against human labels", url: "https://judge.norai.tech" },
   { id: "rozgar", name: "Smart Rozgar", line: "Sarkari job alerts in Hindi and English", url: "https://rozgar.norai.tech" },
 ] as const;

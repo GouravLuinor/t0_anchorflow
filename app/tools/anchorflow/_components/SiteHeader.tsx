@@ -2,6 +2,7 @@ import { Seal } from "./Seal";
 import { NorAiMark } from "./NorAiMark";
 import { ThemeToggle } from "./ThemeToggle";
 import { SignInButton } from "./auth/SignInButton";
+import { COMPANY } from "@/lib/site";
 
 const NAV = [
   { href: "/tools/anchorflow#workstation", label: "Pin a workflow" },
@@ -14,7 +15,18 @@ const NAV = [
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 bg-band">
-      <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center gap-6 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center gap-2.5 px-4 sm:gap-4 md:gap-6 sm:px-6 lg:px-8">
+        <a
+          href={COMPANY.url}
+          className="flex shrink-0 items-center gap-2 rounded text-sm font-bold text-ink hover:text-seal"
+          aria-label="Nor AI, the company behind Anchorflow"
+        >
+          <NorAiMark size={22} />
+          <span>Nor AI</span>
+        </a>
+        <span aria-hidden="true" className="text-ink-3">
+          /
+        </span>
         <a href="/tools/anchorflow" className="flex items-center gap-2.5 rounded" aria-label="Anchorflow home">
           <Seal seed="anchorflow" size={26} />
           <span className="text-[17px] font-extrabold tracking-[-0.01em] text-ink">Anchorflow</span>
@@ -36,11 +48,10 @@ export function SiteHeader() {
           <ThemeToggle />
           <SignInButton />
           <a
-            href="https://norai.tech"
-            className="ml-1 hidden items-center gap-2 rounded px-2 py-1.5 text-sm font-medium text-ink-2 transition-colors duration-150 hover:bg-sunk hover:text-ink sm:inline-flex"
+            href={COMPANY.toolsUrl}
+            className="ml-1 hidden rounded px-2 py-1.5 text-sm font-medium text-ink-2 transition-colors duration-150 hover:bg-sunk hover:text-ink sm:inline-flex"
           >
-            <NorAiMark />
-            Nor AI
+            More Nor AI tools
           </a>
         </div>
       </div>
