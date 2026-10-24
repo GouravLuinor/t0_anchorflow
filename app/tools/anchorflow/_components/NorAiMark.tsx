@@ -1,11 +1,14 @@
-/** The family thread's mark: a small "N" plate linking to norai.tech. */
-export function NorAiMark({ className = "" }: { className?: string }) {
+/** The family thread's mark: the Nor AI logo, served from /public (no network egress). */
+export function NorAiMark({ className = "", size = 20 }: { className?: string; size?: number }) {
   return (
-    <span
+    // eslint-disable-next-line @next/next/no-img-element -- 160px static asset, fixed size
+    <img
+      src="/nor-ai-mark.png"
+      alt=""
+      width={size}
+      height={size}
       aria-hidden="true"
-      className={`grid h-5 w-5 shrink-0 place-items-center rounded bg-ink text-[11px] font-extrabold leading-none text-paper ${className}`}
-    >
-      N
-    </span>
+      className={`shrink-0 ${className}`}
+    />
   );
 }

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { LEARN_TOPICS, topicBySlug } from "@/lib/learn";
-import { SITE_URL } from "@/lib/site";
+import { COMPANY, SITE_URL } from "@/lib/site";
 import { Seal } from "../../_components/Seal";
 import { SiteFooter } from "../../_components/SiteFooter";
 import { SiteHeader } from "../../_components/SiteHeader";
@@ -40,8 +40,8 @@ export default async function LearnTopicPage({ params }: { params: Promise<{ slu
       headline: topic.title,
       description: topic.description,
       url,
-      author: { "@type": "Organization", name: "Nor AI", url: "https://norai.tech" },
-      publisher: { "@type": "Organization", name: "Nor AI", url: "https://norai.tech" },
+      author: { "@id": COMPANY.orgId },
+      publisher: { "@type": "Organization", "@id": COMPANY.orgId, name: COMPANY.name, url: COMPANY.url, logo: COMPANY.logo },
       about: "GitHub Actions security",
     },
     {
@@ -72,6 +72,12 @@ export default async function LearnTopicPage({ params }: { params: Promise<{ slu
           <h1 className="mt-3 text-[30px] font-extrabold leading-[1.1] tracking-[-0.025em] text-ink sm:text-[40px]">
             {topic.title}
           </h1>
+          <p className="mt-2 text-sm text-ink-3">
+            Published by{" "}
+            <a href={COMPANY.url} className="font-semibold text-ink-2 underline hover:text-seal">
+              Nor AI
+            </a>
+          </p>
           <p className="mt-4 text-[18px] leading-relaxed text-ink-2">{topic.intro}</p>
 
           {topic.sections.map((section) => (
@@ -102,6 +108,17 @@ export default async function LearnTopicPage({ params }: { params: Promise<{ slu
             >
               Check your workflow
             </a>
+            <p className="mt-4 text-sm text-ink-2">
+              Anchorflow is built by{" "}
+              <a href={COMPANY.url} className="font-semibold text-seal underline">
+                Nor AI
+              </a>
+              , which also makes{" "}
+              <a href={COMPANY.toolsUrl} className="font-semibold text-seal underline">
+                more free developer tools
+              </a>
+              .
+            </p>
           </section>
         </article>
 

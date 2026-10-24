@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FAMILY_TOOLS } from "@/lib/site";
+import { COMPANY, FAMILY_TOOLS } from "@/lib/site";
 import { LEARN_TOPICS } from "@/lib/learn";
 import { NorAiMark } from "./NorAiMark";
 import { Seal } from "./Seal";
@@ -18,10 +18,16 @@ export function SiteFooter() {
           <p className="mt-3 max-w-xs text-sm leading-relaxed text-ink-2">
             Pin and audit GitHub Actions workflows. Free, no account, and your workflow never leaves the browser.
           </p>
-          <a href="https://norai.tech" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-ink hover:text-seal">
-            <NorAiMark />
-            Built by Nor AI
+          <a href={COMPANY.url} className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-ink hover:text-seal">
+            <NorAiMark size={22} />
+            Anchorflow by Nor AI
           </a>
+          <p className="mt-2 max-w-xs text-sm leading-relaxed text-ink-2">{COMPANY.blurb}</p>
+          <p className="mt-3 text-sm">
+            <a href={COMPANY.contactUrl} className="font-semibold text-seal underline">
+              Talk to an engineer
+            </a>
+          </p>
         </div>
 
         <nav aria-labelledby="footer-guides">
@@ -53,10 +59,19 @@ export function SiteFooter() {
               </li>
             ))}
           </ul>
+          <a href={COMPANY.toolsUrl} className="mt-4 inline-block text-sm font-semibold text-seal underline">
+            See all Nor AI tools
+          </a>
         </nav>
       </div>
       <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-1 border-t border-line px-4 py-5 text-[13px] text-ink-3 sm:flex-row sm:justify-between sm:px-6 lg:px-8">
-        <p>© {new Date().getFullYear()} Nor AI</p>
+        <p>
+          © {new Date().getFullYear()}{" "}
+          <a href={COMPANY.url} className="hover:text-seal">
+            {COMPANY.name}
+          </a>{" "}
+          · {COMPANY.place}
+        </p>
         <p>Not affiliated with GitHub. GitHub Actions is a trademark of GitHub, Inc.</p>
       </div>
     </footer>

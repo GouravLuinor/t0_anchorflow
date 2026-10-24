@@ -1,6 +1,6 @@
 # Anchorflow
 
-> Free, in-browser tool that pins GitHub Actions to full commit SHAs and audits the workflow. Paste a .github/workflows/*.yml file; get it back with every action pinned (original tag kept as a trailing comment, the format Dependabot reads), GITHUB_TOKEN permissions listed per job, template-injection sinks flagged, and a red/green diff of the changed uses: lines. Each pin has a receipt with the GitHub API calls made and a git ls-remote command to verify it. The workflow never leaves the browser; the only network requests are optional, read-only, unauthenticated GETs to api.github.com naming the action and tag. No account, no install. Built by Nor AI.
+> A free tool by Nor AI Technologies (https://norai.tech), an engineering studio in Ghazipur, India that builds custom AI, web and 3D software delivered into the customer's own infrastructure. Anchorflow is a free, in-browser tool that pins GitHub Actions to full commit SHAs and audits the workflow. Paste a .github/workflows/*.yml file; get it back with every action pinned (original tag kept as a trailing comment, the format Dependabot reads), GITHUB_TOKEN permissions listed per job, template-injection sinks flagged, and a red/green diff of the changed uses: lines. Each pin has a receipt with the GitHub API calls made and a git ls-remote command to verify it. The workflow never leaves the browser; the only network requests are optional, read-only, unauthenticated GETs to api.github.com naming the action and tag. No account, no install.
 
 - Tool: https://anchor.norai.tech/tools/anchorflow
 
@@ -20,10 +20,18 @@
 - GitHub allows 60 unauthenticated API requests per hour per IP; refs beyond that are left unpinned and marked.
 - A pinned SHA freezes code; it does not prove the action is safe.
 
+## About Nor AI
+
+- [Nor AI Technologies](https://norai.tech): custom AI, web and 3D software that runs in your own infrastructure; you keep the code
+- [About and mission](https://norai.tech/mission)
+- [Contact an engineer](https://norai.tech/contact)
+
 ## More free tools from Nor AI
 
+- [Grounded RAG](https://rag.norai.tech): cited answers from your own documents, privately
 - [TokenCraft](https://tokens.norai.tech): token counter and LLM cost calculator
 - [SchemaCraft](https://schema.norai.tech): JSON to Zod, Pydantic and TypeScript types
 - [RegexCraft](https://regex.norai.tech): regex tester with plain-English explanations
 - [Judgewright](https://judge.norai.tech): calibrate your LLM judge against human labels
 - [Smart Rozgar](https://rozgar.norai.tech): Sarkari job alerts in Hindi and English
+- [All tools](https://norai.tech/products)

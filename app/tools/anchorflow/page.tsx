@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
-import { SITE, SITE_URL } from "@/lib/site";
+import { COMPANY, SITE, SITE_URL } from "@/lib/site";
+import { BuiltByBand } from "./_components/BuiltByBand";
 import { CompareSection } from "./_components/CompareSection";
 import { FaqSection } from "./_components/FaqSection";
 import { GuideSection } from "./_components/GuideSection";
@@ -11,6 +12,16 @@ const PROMISES = ["Never uploaded", "No account", "Free"] as const;
 
 function jsonLd() {
   return [
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "@id": COMPANY.orgId,
+      name: COMPANY.name,
+      alternateName: COMPANY.short,
+      url: COMPANY.url,
+      logo: COMPANY.logo,
+      description: COMPANY.blurb,
+    },
     {
       "@context": "https://schema.org",
       "@type": "WebApplication",
@@ -30,7 +41,9 @@ function jsonLd() {
         "Red/green diff of the pinned uses: lines",
         "Per-pin receipt with a git ls-remote check",
       ],
-      creator: { "@type": "Organization", name: "Nor AI", url: "https://norai.tech" },
+      creator: { "@id": COMPANY.orgId },
+      publisher: { "@id": COMPANY.orgId },
+      isPartOf: { "@type": "WebSite", name: "Nor AI free tools", url: COMPANY.toolsUrl },
     },
     {
       "@context": "https://schema.org",
@@ -70,6 +83,13 @@ export default function ToolPage() {
                 Paste a workflow. Get it back with every action pinned, every token grant audited and a receipt for each
                 pin. The file never leaves this tab.
               </p>
+              <p className="mt-2 text-sm text-ink-2">
+                A free tool by{" "}
+                <a href={COMPANY.url} className="font-semibold text-ink underline decoration-line-strong underline-offset-2 hover:text-seal">
+                  Nor AI
+                </a>
+                , a Ghazipur studio that builds software you own.
+              </p>
             </div>
             <ul className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm font-semibold text-ink-2 lg:pb-1.5">
               {PROMISES.map((p) => (
@@ -89,6 +109,7 @@ export default function ToolPage() {
         <CompareSection />
         <GuideSection />
         <FaqSection />
+        <BuiltByBand />
       </main>
 
       <SiteFooter />

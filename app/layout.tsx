@@ -3,7 +3,7 @@ import { type ReactNode } from "react";
 import { Martian_Mono, Schibsted_Grotesk } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "./tools/anchorflow/_components/providers/ThemeProvider";
-import { SITE, SITE_URL } from "@/lib/site";
+import { COMPANY, SITE, SITE_URL } from "@/lib/site";
 
 const schibsted = Schibsted_Grotesk({
   subsets: ["latin"],
@@ -22,17 +22,19 @@ const martian = Martian_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: `${SITE.title} · Anchorflow`,
-    template: "%s · Anchorflow",
+    default: SITE.seoTitle,
+    template: "%s · Anchorflow by Nor AI",
   },
   description: SITE.description,
   keywords: [...SITE.keywords],
   applicationName: "Anchorflow",
   creator: SITE.creator,
+  authors: [{ name: COMPANY.name, url: COMPANY.url }],
+  publisher: COMPANY.name,
   alternates: { canonical: "/tools/anchorflow" },
   robots: { index: true, follow: true },
   openGraph: {
-    title: `${SITE.title} · Anchorflow`,
+    title: SITE.seoTitle,
     description: SITE.description,
     type: "website",
     url: "/tools/anchorflow",
@@ -41,7 +43,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: `${SITE.title} · Anchorflow`,
+    title: SITE.seoTitle,
     description: SITE.description,
   },
 };

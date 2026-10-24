@@ -35,6 +35,9 @@ export default function Error({
       >
         Reload the workstation
       </button>
+      <a href="https://norai.tech" className="text-sm text-zinc-400 underline hover:text-zinc-200">
+        Anchorflow is a free tool by Nor AI
+      </a>
     </div>
   );
 }
