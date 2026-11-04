@@ -8,7 +8,7 @@
  * Port 3004 is pinned here as well, so it can never drift to 3000 (reserved
  * for the website).
  *
- * Usage (deploy user only; see RELEASE_CHECKLIST.md):
+ * Usage (deploy user only):
  *   npm run build
  *   pm2 start ecosystem.config.js          # first boot
  *   pm2 restart anchor-norai               # every later release

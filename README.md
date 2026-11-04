@@ -1,5 +1,7 @@
 # Anchorflow — GitHub Actions Workstation
 
+> 🔗 **Live:** [anchor.norai.tech](https://anchor.norai.tech) · One of the free developer tools from [Nor AI Technologies](https://norai.tech) · Built by [Gourav Kumar Singh](https://github.com/GouravLuinor)
+
 **Anchorflow** (`anchorflow`) is a NorAI Tier-0 developer workstation: a
 client-side GitHub Actions workstation that pins every action to an immutable
 commit SHA, audits the `GITHUB_TOKEN` grants per job, detects template-injection
@@ -184,5 +186,4 @@ Engineering rules that are binding, not aspirational, live in `AGENTS.md`:
 | `npm run bench` | Phase A median 14.7–16.9 ms (1k) / 62.4–68.6 ms (5k) / 114.3–125.0 ms (3× cap) |
 
 Details and honest remaining gaps: `BENCHMARKS.md` and `QUALITY_REPORT.md`.
-Live-oracle orchestration: `.github/workflows/oracle.yml`. Release steps:
-`RELEASE_CHECKLIST.md`.
+Live-oracle orchestration: `.github/workflows/oracle.yml`.
